@@ -1,10 +1,11 @@
 # NixOS: Umbriel / Mango + Noctalia
 
 ```
-flake.nix               entry point: inputs (nixpkgs, home-manager, zen) and machines
-configuration.nix       shared by all machines: desktop, apps, audio, login screen
-hosts/vm/default.nix    VM only: bootloader, guest tools, stateVersion
-hosts/vm/hardware-configuration.nix   copied from the VM (step 4)
+setup.sh                interactive setup for a new machine (step 4)
+flake.nix               entry point: inputs (nixpkgs, home-manager, zen); finds machines in hosts/
+configuration.nix       shared by all machines: desktop, apps, audio, login screen, SSH
+hosts/<name>/default.nix                one folder per machine (name = hostname):
+hosts/<name>/hardware-configuration.nix   bootloader, VM tools, stateVersion, disks
 home.nix                Home Manager: your user's dotfiles
 umbriel/config.toml     Umbriel config and keybinds (reloads on save)
 mango/config.conf       Mango config and keybinds (reloads on save)
@@ -12,29 +13,6 @@ mango/config.conf       Mango config and keybinds (reloads on save)
 
 Both compositors are installed. You pick one on the login screen, and Noctalia runs in either.
 
-## 0. VM settings (on Windows)
-
-Umbriel and Mango both draw with the GPU, so the VM needs 3D acceleration.
-
-- **VMware Workstation** (free for personal use): the most reliable choice. Enable *Accelerate 3D graphics*.
-- **VirtualBox**: graphics controller *VMSVGA* with *Enable 3D Acceleration*. Works sometimes.
-- **Hyper-V**: has no 3D acceleration for Linux guests. Umbriel will most likely fail or crawl.
-
-Also give the VM at least 4 GB RAM (8 is better), 2+ CPUs and a 40+ GB disk.
-
-## 1. Put this folder on GitHub (on Windows)
-
-Create an empty repository (private is fine) called `nixos-config`, then:
-
-```powershell
-cd C:\Users\merdoes\Documents\oergel-nixos-config
-git init
-git add .
-git commit -m "Initial NixOS config"
-git branch -M main
-git remote add origin https://github.com/<you>/nixos-config.git
-git push -u origin main
-```
 
 ## 2. Turn on flakes and git in the minimal VM
 
@@ -59,57 +37,55 @@ sudo nixos-rebuild switch
 
 ## 3. Clone the repo
 
-The path matters, because `home.nix` links to `~/nixos-config/umbriel/config.toml`.
+The path matters, because `home.nix` links to `~/oergel-nixos-config/umbriel/config.toml`.
 
 ```sh
-git clone https://github.com/<you>/nixos-config.git ~/nixos-config
-cd ~/nixos-config
+git clone https://github.com/<you>/oergel-nixos-config.git ~/oergel-nixos-config
+cd ~/oergel-nixos-config
 ```
 
 A private repo asks for a username and a GitHub personal access token as the password.
 
-## 4. Adapt it to the VM
+## 4. Run the setup script
 
 ```sh
-cp /etc/nixos/hardware-configuration.nix hosts/vm/
-cat /etc/nixos/configuration.nix      # compare with the values below
+bash setup.sh
 ```
 
-Compare the installer's file with these and fix ours where they differ:
+It asks a few questions, suggests an answer for each (press Enter to accept),
+and shows a summary before changing anything:
 
-| What | Where in this repo |
+| Question | What it does |
 |---|---|
-| Your username (`users.users.<name>`) | `username = ...` in `flake.nix` |
-| `boot.loader...` lines | `hosts/vm/default.nix` |
-| `system.stateVersion` | `hosts/vm/default.nix` and `home.stateVersion` in `home.nix` |
-| `console.keyMap` / keyboard layout | `configuration.nix`, `[input.keyboard]` in `umbriel/config.toml`, `xkb_rules_layout` in `mango/config.conf` |
+| Machine name | Becomes the hostname, and `hosts/<name>/` holds this machine's settings |
+| Username | Must be the user from the install. Otherwise NixOS creates a new one *without* a password |
+| Bootloader | Detected: systemd-boot on UEFI, GRUB on BIOS (asks which disk) |
+| stateVersion | Taken from the installer's `/etc/nixos/configuration.nix` |
+| Keyboard | Written to `configuration.nix`, `umbriel/config.toml` and `mango/config.conf` |
+| VM only | Guest tools for the hypervisor it detects, plus the graphics workarounds |
 
-> **The username must match the user that already exists.** If it doesn't,
-> NixOS creates a new user with no password and you can't log in.
+It also copies `hardware-configuration.nix`, checks the free disk space, runs
+`git add -A` (flakes ignore files git doesn't know), and then offers to build
+and reboot. Running it again is safe: old files are kept as `*.bak`.
 
-VMware Tools (open-vm-tools) are already switched on in `hosts/vm/default.nix`.
-For another hypervisor, swap in its line there.
-
-In VMware Workstation Player, check these VM settings:
+For a VMware VM, also check these settings in VMware Workstation Player:
 
 - **Display:** *Accelerate 3D graphics* on, with as much graphics memory as it allows.
+  If it stays off, add `mks.enable3d = "TRUE"` to the VM's `.vmx` file (VM powered off).
 - **Options → Guest Isolation:** drag-and-drop and copy-paste enabled.
-- **Options → VMware Tools** (if present): *Synchronize guest time with host*.
 
-## 5. Build
+## 5. After the first build
 
-Flakes only see files that git knows about. Always `git add` new files first.
+From now on, `rebuild` (an alias) rebuilds. `sudo nixos-rebuild switch --flake ~/oergel-nixos-config`
+works too, and picks this machine by its hostname.
+
+Commit and push, including `flake.lock`, which pins the exact versions of everything:
 
 ```sh
-git add -A
-sudo nixos-rebuild switch --flake ~/nixos-config#nixos-vm
+git commit -am "Set up <name>" && git push
 ```
 
-The first build downloads a lot and takes a while. After that the hostname is
-`nixos-vm`, so later builds don't need `#nixos-vm`. The `rebuild` alias does it:
-`rebuild`.
-
-Commit the generated `flake.lock` and push it. It pins the exact versions of everything.
+To change settings later, edit the files directly or run `bash setup.sh` again.
 
 ## 6. Reboot and log in
 
@@ -130,7 +106,7 @@ To switch compositors, log out (`Super+Escape` → Logout, or `Super+Shift+Q`) a
 
 ## Daily use
 
-- **Compositor configs:** edit `~/nixos-config/umbriel/config.toml` or `~/nixos-config/mango/config.conf`. They apply when you save, with no rebuild.
+- **Compositor configs:** edit `~/oergel-nixos-config/umbriel/config.toml` or `~/oergel-nixos-config/mango/config.conf`. They apply when you save, with no rebuild.
 - **Everything else:** edit the `.nix` files, then `git add -A && rebuild`.
 - **Update all software:** `update`. It runs `nix flake update` and then rebuilds.
 - **Undo:** every rebuild is a *generation*. Pick an older one in the boot menu, or run `sudo nixos-rebuild switch --rollback`.
@@ -141,7 +117,10 @@ To switch compositors, log out (`Super+Escape` → Logout, or `Super+Shift+Q`) a
 - **Black screen or back at the login screen:** press `Ctrl+Alt+F2` for a text console. Then read the logs.
   Umbriel: `~/.cache/umbriel/umbriel.log` and `journalctl --user -b -u umbriel`. Mango: run `mango` from
   the console to see its errors. If there is no 3D acceleration, uncomment `WLR_RENDERER_ALLOW_SOFTWARE`
-  in `hosts/vm/default.nix` and rebuild.
+  in `hosts/<name>/default.nix` and rebuild.
+- **Noctalia or terminal windows vanish right after opening (VM):** uncomment `LIBGL_ALWAYS_SOFTWARE`
+  in `hosts/<name>/default.nix` and rebuild, then log in again.
+- **Remote login:** the SSH server is on. From another machine: `ssh <user>@<ip>` (IP from `ip -br a`).
 - **Super does nothing:** Windows or the VM app is catching the Windows key. Fix it in the hypervisor's
   keyboard settings. Otherwise, for now, set `mod_key = "Alt"` in `umbriel/config.toml`, or replace
   `SUPER` with `ALT` in `mango/config.conf`.
@@ -169,7 +148,7 @@ approximate dwm.
 | `Mod+h/l` mfact | same | same in master; column width in scrolling |
 | `Mod+Return` zoom | same | swaps with master (approximate) |
 | `Mod+Tab` | previous tagset | previous workspace |
-| `Mod+Shift+c` kill | same | same |
+| `Mod+Shift+c` kill | **`Mod+Q`** | same |
 | `Mod+t` tile | tile | master |
 | `Mod+f` floating | floats all windows on the tag | floating layout |
 | `Mod+m` monocle | monocle | **scrolling** (no monocle) |

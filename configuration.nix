@@ -31,12 +31,12 @@
   time.timeZone = "Europe/Zurich";
   i18n.defaultLocale = "en_US.UTF-8";
   # Swiss German. The compositors set their own layout in
-  # umbriel/config.toml and mango/config.conf.
+  # umbriel/config.toml and mango/config.conf (setup.sh keeps all three in sync).
   services.xserver.xkb = {
     layout = "ch";
     variant = "de_nodeadkeys";
   };
-  console.keyMap = "sg"; # text console (TTY)
+  console.useXkbConfig = true; # text console (TTY) uses the same layout
 
   # ---------------------------------------------------------------------- User
   users.users.${username} = {
@@ -79,6 +79,19 @@
   services.gnome.gnome-keyring.enable = true;
   security.pam.services.greetd.enableGnomeKeyring = true;
   security.polkit.enable = true;
+
+  # ---------------------------------------------------------------- SSH server
+  # Log in from another machine with `ssh <user>@<ip>`. Port 22 is opened in
+  # the firewall automatically.
+  services.openssh = {
+    enable = true;
+    settings = {
+      PermitRootLogin = "no";
+      # Passwords are fine to start with. Once your SSH key is in
+      # ~/.ssh/authorized_keys, set this to false (keys only, much safer).
+      PasswordAuthentication = true;
+    };
+  };
 
   # -------------------------------------------------------------------- Audio
   security.rtkit.enable = true;

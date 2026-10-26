@@ -1,5 +1,5 @@
 {
-  description = "NixOS with Umbriel + Noctalia";
+  description = "NixOS with Umbriel / Mango + Noctalia";
 
   inputs = {
     # Rolling release. Umbriel and Noctalia are only packaged in unstable.
@@ -21,16 +21,23 @@
   outputs =
     { nixpkgs, home-manager, ... }@inputs:
     let
-      # Must be the user you created during the NixOS install.
+      # Must be the user you created during the NixOS install (setup.sh sets it).
       username = "merdoes";
 
+      # Every folder in hosts/ is one machine, and the folder name is its
+      # hostname. So `sudo nixos-rebuild switch --flake .` picks the right one.
+      hosts = builtins.attrNames (
+        nixpkgs.lib.filterAttrs (_: type: type == "directory") (builtins.readDir ./hosts)
+      );
+
       mkHost =
-        hostModule:
+        name:
         nixpkgs.lib.nixosSystem {
           specialArgs = { inherit inputs username; };
           modules = [
             ./configuration.nix
-            hostModule
+            ./hosts/${name}
+            { networking.hostName = name; }
             home-manager.nixosModules.home-manager
             {
               home-manager.useGlobalPkgs = true;
@@ -43,11 +50,6 @@
         };
     in
     {
-      # The name matches networking.hostName, so
-      # `sudo nixos-rebuild switch --flake ~/nixos-config` picks it automatically.
-      nixosConfigurations = {
-        nixos-vm = mkHost ./hosts/vm;
-        # notebook = mkHost ./hosts/notebook;
-      };
+      nixosConfigurations = nixpkgs.lib.genAttrs hosts mkHost;
     };
 }

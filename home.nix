@@ -1,15 +1,14 @@
 # Home Manager: your user's dotfiles.
 { config, username, ... }:
 let
-  repo = "${config.home.homeDirectory}/nixos-config";
+  # Where this repo lives (setup.sh sets it). Don't move the folder afterwards.
+  repo = "${config.home.homeDirectory}/oergel-nixos-config";
   link = path: config.lib.file.mkOutOfStoreSymlink "${repo}/${path}";
 in
 {
   home.username = username;
   home.homeDirectory = "/home/${username}";
-
-  # Same rule as system.stateVersion: set once, never change.
-  home.stateVersion = "26.05";
+  # home.stateVersion is set per machine, in hosts/<name>/default.nix.
 
   programs.home-manager.enable = true;
 
@@ -27,8 +26,8 @@ in
   programs.bash = {
     enable = true;
     shellAliases = {
-      rebuild = "sudo nixos-rebuild switch --flake ~/nixos-config";
-      update = "nix flake update --flake ~/nixos-config && sudo nixos-rebuild switch --flake ~/nixos-config";
+      rebuild = "sudo nixos-rebuild switch --flake ${repo}";
+      update = "nix flake update --flake ${repo} && sudo nixos-rebuild switch --flake ${repo}";
     };
   };
 }

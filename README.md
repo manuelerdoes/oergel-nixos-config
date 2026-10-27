@@ -199,7 +199,30 @@ home PC --(work VPN)--> notebook:22 (SSH) --tunnel--> wayvnc on 127.0.0.1:5900
    ```
 3. **In the VNC viewer, connect to `localhost:5900`.**
 
-### What the notebook needs
+### A separate desktop instead (recommended for working from home)
+
+Instead of sharing the office screen, `remote-desktop` starts a second, invisible desktop: Umbriel
+without a monitor, with Noctalia and your normal config. Nobody has to be logged in at the
+notebook, and its screen shows nothing of what you do. It uses port **5901**:
+
+```powershell
+ssh -L 5901:localhost:5901 <user>@<notebook>
+```
+```sh
+remote-desktop start            # or e.g. remote-desktop start 2560x1440
+remote-desktop status
+remote-desktop stop             # closes all of its windows
+```
+
+Connect the VNC viewer to `localhost:5901`. The desktop keeps running if the SSH connection drops.
+Reconnect and connect the viewer again.
+
+- **Browsers allow one copy per profile.** If an office session is still running with Zen or Chromium
+  open, they won't start in the remote desktop. Log out at the office, or close them there.
+- **If it doesn't start**, it prints the last log lines. More in `journalctl --user -u remote-desktop`
+  and `~/.cache/umbriel/umbriel.log`.
+
+### What the notebook needs (for sharing the office screen)
 
 - **You're logged in.** VNC shares a running desktop. After a reboot, someone has to log in at the
   notebook first. (Automatic login would solve that, but anyone at your desk would then get your desktop.)

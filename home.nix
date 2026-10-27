@@ -32,6 +32,10 @@ in
     (pkgs.writeShellScriptBin "import-bookmarks" ''
       exec ${pkgs.python3}/bin/python3 ${./scripts/import-bookmarks.py} "$@"
     '')
+    # `remote-desktop start|stop|status`: a separate desktop over VNC, for SSH.
+    (pkgs.writeShellScriptBin "remote-desktop" ''
+      exec ${pkgs.bash}/bin/bash ${./scripts/remote-desktop.sh} "$@"
+    '')
   ];
 
   programs.bash = {

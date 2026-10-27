@@ -65,6 +65,9 @@ in
   # ---------------------------------------------------------------------- User
   users.users.${username} = {
     isNormalUser = true;
+    # Keep your user's systemd running while you're logged out, so the
+    # remote-desktop session survives a dropped SSH connection.
+    linger = true;
     extraGroups = [
       "wheel" # sudo
       "networkmanager"

@@ -26,8 +26,9 @@ die() {
 
 # ask "Question" "default"  -> prints the answer (prompt goes to stderr)
 ask() {
-  local reply
-  read -r -p "$1 [$2]: " reply
+  local reply prompt="$1: "
+  [ -n "$2" ] && prompt="$1 [$2]: "
+  read -r -p "$prompt" reply
   printf '%s' "${reply:-$2}"
 }
 
@@ -251,6 +252,71 @@ ${guest}"
   # ------------------------------------------------------- VM graphics quirks${quirks}"
 fi
 
+# ------------------------------------------------------------------------ Work
+step "Work file shares (optional)"
+info "Windows file shares with Kerberos login. The domain and shares are saved in"
+info "private/work.nix, which is git-ignored and never goes to GitHub."
+info "On a Windows work PC, in cmd:  echo %USERDNSDOMAIN%  shows the domain,  net use  the shares."
+private_file="$REPO/private/work.nix"
+work_realm=""
+share_names=()
+share_paths=()
+if [ -f "$private_file" ]; then
+  work_realm="$(repo_value private/work.nix '^ *realm = "([^"]*)";.*')"
+  while IFS=$'\t' read -r share_name share_path; do
+    share_names+=("$share_name")
+    share_paths+=("$share_path")
+  done < <(sed -n -E 's/^ *"([^"]+)" = "([^"]*)";.*/\1\t\2/p' "$private_file")
+fi
+
+setup_work=no
+work_default=n
+[ -n "$work_realm" ] && work_default=y
+if yes_no "Set up work file shares?" "$work_default"; then
+  setup_work=yes
+  work_realm="$(ask_valid "Domain" "$work_realm" '^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$' "a domain name like AD.EXAMPLE.ORG")"
+  work_realm="${work_realm^^}" # Kerberos realms are written in capitals
+
+  if [ ${#share_names[@]} -gt 0 ]; then
+    info "Current shares:"
+    for i in "${!share_names[@]}"; do
+      info "  ~/shares/${share_names[$i]}  ->  ${share_paths[$i]}"
+    done
+    yes_no "Keep them?" y || {
+      share_names=()
+      share_paths=()
+    }
+  fi
+
+  info "Add shares. Paste the path as 'net use' shows it (\\\\server\\share). Press Enter on an empty name to finish."
+  share_re='^//[^/"$]+/[^"$]+$'
+  while true; do
+    share_name="$(ask "Name (it appears as ~/shares/<name>)" "")"
+    [ -z "$share_name" ] && break
+    if ! [[ "$share_name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+      warn "Use letters, digits, . _ and - only."
+      continue
+    fi
+    if printf '%s\n' "${share_names[@]}" | grep -qx -- "$share_name"; then
+      warn "'$share_name' already exists."
+      continue
+    fi
+    share_path="$(ask "Path of '$share_name'" "")"
+    share_path="${share_path//\\//}" # \\server\share -> //server/share
+    if ! [[ "$share_path" =~ $share_re ]]; then
+      warn "Expected something like \\\\server\\share or //server/share."
+      continue
+    fi
+    share_names+=("$share_name")
+    share_paths+=("$share_path")
+  done
+  work_summary="domain $work_realm, ${#share_names[@]} share(s)"
+elif [ -f "$private_file" ]; then
+  work_summary="unchanged (private/work.nix stays as it is)"
+else
+  work_summary="not set up"
+fi
+
 # ---------------------------------------------------------------- Disk space
 avail_gb="$(df -BG --output=avail /nix 2>/dev/null | tail -n 1 | tr -dc '0-9')"
 if [ -n "$avail_gb" ] && [ "$avail_gb" -lt 25 ]; then
@@ -285,14 +351,16 @@ cat <<EOF
   stateVersion:  $state_version
   Keyboard:      $kb_layout${kb_variant:+ ($kb_variant)}
   VM:            $virt
+  Work shares:   $work_summary
 
   Files that will be written or changed:
     hosts/$host/default.nix
     hosts/$host/hardware-configuration.nix
-    flake.nix, home.nix                        (user, repo path)
+    flake.nix                                  (user, repo path)
     configuration.nix, umbriel/config.toml,
     mango/config.conf                          (keyboard)
 EOF
+[ "$setup_work" = yes ] && echo "    private/work.nix                           (work; not uploaded)"
 echo
 yes_no "Apply this?" y || die "Aborted. Nothing was changed."
 
@@ -343,14 +411,34 @@ info "hosts/$host/default.nix written"
 
 # Shared files
 set_value flake.nix '^( *username = ")[^"]*(";)' "$username"
-set_value home.nix '^( *repo = "\$\{config\.home\.homeDirectory\}/)[^"]*(";)' "$repo_rel"
+set_value flake.nix '^( *repoDir = ")[^"]*(";)' "$repo_rel"
 set_value configuration.nix '^( *layout = ")[^"]*(";)' "$kb_layout"
 set_value configuration.nix '^( *variant = ")[^"]*(";)' "$kb_variant"
 set_value umbriel/config.toml '^(layout = ")[^"]*(")' "$kb_layout"
 set_value umbriel/config.toml '^(variant = ")[^"]*(")' "$kb_variant"
 set_value mango/config.conf '^(xkb_rules_layout=)[^[:space:]]*()' "$kb_layout"
 set_value mango/config.conf '^(xkb_rules_variant=)[^[:space:]]*()' "$kb_variant"
-info "flake.nix, home.nix, configuration.nix and the compositor configs updated"
+info "flake.nix, configuration.nix and the compositor configs updated"
+
+# Private work settings. Plain data, read by work.nix.
+if [ "$setup_work" = yes ]; then
+  mkdir -p "$REPO/private"
+  backup "$private_file"
+  {
+    echo "# Private work settings for this machine, written by setup.sh."
+    echo "# private/ is git-ignored, so this never goes to GitHub."
+    echo "{"
+    echo "  realm = \"$work_realm\";"
+    echo "  shares = {"
+    for i in "${!share_names[@]}"; do
+      printf '    "%s" = "%s";\n' "${share_names[$i]}" "${share_paths[$i]}"
+    done
+    echo "  };"
+    echo "}"
+  } >"$private_file"
+  chmod 600 "$private_file"
+  info "private/work.nix written (stays on this machine)"
+fi
 
 # Flakes only see files that git knows about.
 git_cmd add -A
@@ -362,15 +450,20 @@ info "All files added to git (flakes ignore untracked files)"
 step "Build"
 info "The first build downloads a lot and can take a while."
 if yes_no "Build and switch to the new configuration now?" y; then
-  if ! sudo nixos-rebuild switch --flake "$REPO#$host"; then
+  # --impure lets the build read the git-ignored private/work.nix.
+  if ! sudo nixos-rebuild switch --impure --flake "$REPO#$host"; then
     die "The build failed. The system is unchanged. Look for the first line starting with 'error:' above."
   fi
-  info "Done. From now on, rebuild with:  sudo nixos-rebuild switch --flake ~/$repo_rel"
+  info "Done. From now on, rebuild with:  sudo nixos-rebuild switch --impure --flake ~/$repo_rel"
   info "(after the next login also just:  rebuild)"
   info "Don't forget to commit and push your changes:  git commit -am 'Set up $host' && git push"
+  if [ "$setup_work" = yes ]; then
+    info "Work shares: run 'kinit <your Windows username>', then open ~/shares/<name>."
+    info "VPN: set it up once with nm-connection-editor (see README, 'Work: file shares and VPN')."
+  fi
   if yes_no "Reboot now to get the login screen?" y; then
     systemctl reboot
   fi
 else
-  info "Build later with:  sudo nixos-rebuild switch --flake ~/$repo_rel#$host"
+  info "Build later with:  sudo nixos-rebuild switch --impure --flake ~/$repo_rel#$host"
 fi

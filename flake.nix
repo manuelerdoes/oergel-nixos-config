@@ -24,6 +24,24 @@
       # Must be the user you created during the NixOS install (setup.sh sets it).
       username = "merdoes";
 
+      # Where this repo lives, relative to your home folder (setup.sh sets it).
+      # Home Manager links the compositor configs here, so don't move it.
+      repoDir = "oergel-nixos-config";
+      repo = "/home/${username}/${repoDir}";
+
+      # Private settings for this machine (work domain, file shares), written
+      # by setup.sh. private/ is git-ignored, so it never goes to GitHub. A
+      # flake can only read untracked files with --impure; the rebuild and
+      # update aliases and setup.sh pass it.
+      privateFile = "${repo}/private/work.nix";
+      private =
+        if !(builtins ? currentSystem) then
+          nixpkgs.lib.warn "private/work.nix not loaded: rebuild with --impure (the `rebuild` alias does)." { }
+        else if builtins.pathExists privateFile then
+          import privateFile
+        else
+          { };
+
       # Every folder in hosts/ is one machine, and the folder name is its
       # hostname. So `sudo nixos-rebuild switch --flake .` picks the right one.
       hosts = builtins.attrNames (
@@ -33,7 +51,14 @@
       mkHost =
         name:
         nixpkgs.lib.nixosSystem {
-          specialArgs = { inherit inputs username; };
+          specialArgs = {
+            inherit
+              inputs
+              username
+              repo
+              private
+              ;
+          };
           modules = [
             ./configuration.nix
             ./hosts/${name}
@@ -43,7 +68,7 @@
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
-              home-manager.extraSpecialArgs = { inherit inputs username; };
+              home-manager.extraSpecialArgs = { inherit inputs username repo; };
               home-manager.users.${username} = import ./home.nix;
             }
           ];

@@ -3,11 +3,10 @@
   config,
   pkgs,
   username,
+  repo, # where this repo lives, set in flake.nix
   ...
 }:
 let
-  # Where this repo lives (setup.sh sets it). Don't move the folder afterwards.
-  repo = "${config.home.homeDirectory}/oergel-nixos-config";
   link = path: config.lib.file.mkOutOfStoreSymlink "${repo}/${path}";
 in
 {
@@ -38,8 +37,9 @@ in
   programs.bash = {
     enable = true;
     shellAliases = {
-      rebuild = "sudo nixos-rebuild switch --flake ${repo}";
-      update = "nix flake update --flake ${repo} && sudo nixos-rebuild switch --flake ${repo}";
+      # --impure lets the build read the git-ignored private/work.nix.
+      rebuild = "sudo nixos-rebuild switch --impure --flake ${repo}";
+      update = "nix flake update --flake ${repo} && sudo nixos-rebuild switch --impure --flake ${repo}";
     };
   };
 }

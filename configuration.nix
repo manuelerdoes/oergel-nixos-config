@@ -8,6 +8,10 @@
   ...
 }:
 {
+  imports = [
+    ./work.nix # file shares, Kerberos, VPN
+  ];
+
   # ---------------------------------------------------------------- Nix itself
   nix.settings = {
     experimental-features = [

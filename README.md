@@ -7,6 +7,8 @@ configuration.nix       shared by all machines: desktop, apps, audio, login scre
 hosts/<name>/default.nix                one folder per machine (name = hostname):
 hosts/<name>/hardware-configuration.nix   bootloader, VM tools, stateVersion, disks
 home.nix                Home Manager: your user's dotfiles
+work.nix                work: file shares (SMB + Kerberos), Cisco VPN
+private/work.nix        your domain and shares; git-ignored, written by setup.sh
 umbriel/config.toml     Umbriel config and keybinds (reloads on save)
 mango/config.conf       Mango config and keybinds (reloads on save)
 ```
@@ -76,8 +78,10 @@ For a VMware VM, also check these settings in VMware Workstation Player:
 
 ## 5. After the first build
 
-From now on, `rebuild` (an alias) rebuilds. `sudo nixos-rebuild switch --flake ~/oergel-nixos-config`
-works too, and picks this machine by its hostname.
+From now on, `rebuild` (an alias) rebuilds. The long form is
+`sudo nixos-rebuild switch --impure --flake ~/oergel-nixos-config`, and it picks this machine by its hostname.
+`--impure` lets the build read `private/work.nix`, which git doesn't track. Without it, the build prints a
+warning and leaves out the work shares.
 
 Commit and push, including `flake.lock`, which pins the exact versions of everything:
 
@@ -115,6 +119,52 @@ To switch compositors, log out (`Super+Escape` → Logout, or `Super+Shift+Q`) a
   `import-bookmarks ~/Downloads/bookmarks.html`. Chromium gets them right away. Zen imports them the next
   time it starts. Existing bookmarks are kept, and duplicates (same URL) are skipped. Keep the HTML file out
   of the repo (`*.html` is git-ignored anyway). Each browser needs to have been started once before.
+
+## Work: file shares and VPN
+
+You keep a normal local user. Kerberos logs you in to the domain's services
+without joining the machine to the domain.
+
+- **`work.nix`** (public) holds the setup: Kerberos, how shares are mounted, and the VPN.
+- **`private/work.nix`** holds your domain and share paths. It is git-ignored, so it stays on the machine.
+
+### Set up once
+
+1. **Collect two things on your Windows work PC** (in `cmd`):
+   - `echo %USERDNSDOMAIN%` prints the domain.
+   - `net use` lists your network drives as `\\server\share`.
+2. **Run `bash setup.sh`** and answer *yes* at "Set up work file shares?". Enter the domain,
+   then each share: a name and the path, which you can paste exactly as `net use` shows it.
+   Each share appears as `~/shares/<name>`. Running `setup.sh` again shows the current
+   shares and lets you keep them and add more.
+3. **Set up the VPN** (for off campus): run `nm-connection-editor`, click **+**, and choose
+   *Cisco AnyConnect or openconnect*. As *Gateway*, enter the server you use in Cisco Secure Client
+   on Windows. Save.
+
+### Every day
+
+1. **Off campus, connect the VPN** from Noctalia's network menu, or with
+   `nmcli connection up <name> --ask`.
+2. **Get a Kerberos ticket**, valid for about 10 hours:
+   ```sh
+   kinit yourname        # your Windows username, asks for your Windows password
+   klist                 # shows the ticket
+   ```
+   If your Linux username is the same as your Windows one, a plain `kinit` is enough.
+3. **Open `~/shares/<name>`** in the terminal, Nautilus or VS Code. It connects on first access.
+
+### If it doesn't work
+
+- **`Required key not available` or `Permission denied` on a share:** usually no valid ticket. Run `klist`,
+  then `kinit` again.
+- **`kinit: Cannot find KDC for realm`:** you're not in the work network. Connect the VPN, or check the domain
+  in `private/work.nix` (it must be in capitals; `bash setup.sh` can change it).
+- **`Clock skew too great`:** Kerberos needs the clock to be within about 5 minutes. Check it with `date`.
+- **A share hangs or fails:** `journalctl -b | grep -i cifs` shows the real error.
+- **The VPN asks for a browser or MFA login:** the NetworkManager dialog shows the login page. If that
+  doesn't work, try it from the terminal: `sudo openconnect --protocol=anyconnect <gateway>`.
+- **Quick one-off access without any setup:** in Nautilus, go to *Other Locations → Connect to Server* and
+  enter `smb://server/share`.
 
 ## Troubleshooting
 

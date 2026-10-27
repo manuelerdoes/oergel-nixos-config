@@ -5,3 +5,4 @@ result-*
 # Exported bookmarks and other private files never go to GitHub.
 *.html
 *.htm
+/private/

@@ -358,7 +358,7 @@ cat <<EOF
     hosts/$host/hardware-configuration.nix
     flake.nix                                  (user, repo path)
     configuration.nix, umbriel/config.toml,
-    mango/config.conf                          (keyboard)
+    mango/settings.conf                        (keyboard)
 EOF
 [ "$setup_work" = yes ] && echo "    private/work.nix                           (work; not uploaded)"
 echo
@@ -416,8 +416,8 @@ set_value configuration.nix '^( *layout = ")[^"]*(";)' "$kb_layout"
 set_value configuration.nix '^( *variant = ")[^"]*(";)' "$kb_variant"
 set_value umbriel/config.toml '^(layout = ")[^"]*(")' "$kb_layout"
 set_value umbriel/config.toml '^(variant = ")[^"]*(")' "$kb_variant"
-set_value mango/config.conf '^(xkb_rules_layout=)[^[:space:]]*()' "$kb_layout"
-set_value mango/config.conf '^(xkb_rules_variant=)[^[:space:]]*()' "$kb_variant"
+set_value mango/settings.conf '^(xkb_rules_layout=)[^[:space:]]*()' "$kb_layout"
+set_value mango/settings.conf '^(xkb_rules_variant=)[^[:space:]]*()' "$kb_variant"
 info "flake.nix, configuration.nix and the compositor configs updated"
 
 # Private work settings. Plain data, read by work.nix.

@@ -10,7 +10,8 @@ home.nix                Home Manager: your user's dotfiles
 work.nix                work: file shares (SMB + Kerberos), Cisco VPN
 private/work.nix        your domain and shares; git-ignored, written by setup.sh
 umbriel/config.toml     Umbriel config and keybinds (reloads on save)
-mango/config.conf       Mango config and keybinds (reloads on save)
+mango/config.conf       Mango: what starts at login; loads settings.conf
+mango/settings.conf     Mango settings and keybinds (both reload on save)
 ```
 
 Both compositors are installed. You pick one on the login screen, and Noctalia runs in either.
@@ -63,7 +64,7 @@ and shows a summary before changing anything:
 | Username | Must be the user from the install. Otherwise NixOS creates a new one *without* a password |
 | Bootloader | Detected: systemd-boot on UEFI, GRUB on BIOS (asks which disk) |
 | stateVersion | Taken from the installer's `/etc/nixos/configuration.nix` |
-| Keyboard | Written to `configuration.nix`, `umbriel/config.toml` and `mango/config.conf` |
+| Keyboard | Written to `configuration.nix`, `umbriel/config.toml` and `mango/settings.conf` |
 | VM only | Guest tools for the hypervisor it detects, plus the graphics workarounds |
 
 It also copies `hardware-configuration.nix`, checks the free disk space, runs
@@ -110,7 +111,7 @@ To switch compositors, log out (`Super+Escape` → Logout, or `Super+Shift+Q`) a
 
 ## Daily use
 
-- **Compositor configs:** edit `~/oergel-nixos-config/umbriel/config.toml` or `~/oergel-nixos-config/mango/config.conf`. They apply when you save, with no rebuild.
+- **Compositor configs:** edit `~/oergel-nixos-config/umbriel/config.toml` or `~/oergel-nixos-config/mango/settings.conf`. They apply when you save, with no rebuild.
 - **Everything else:** edit the `.nix` files, then `git add -A && rebuild`.
 - **Update all software:** `update`. It runs `nix flake update` and then rebuilds.
 - **Undo:** every rebuild is a *generation*. Pick an older one in the boot menu, or run `sudo nixos-rebuild switch --rollback`.
@@ -201,9 +202,9 @@ home PC --(work VPN)--> notebook:22 (SSH) --tunnel--> wayvnc on 127.0.0.1:5900
 
 ### A separate desktop instead (recommended for working from home)
 
-Instead of sharing the office screen, `remote-desktop` starts a second, invisible desktop: Umbriel
-without a monitor, with Noctalia and your normal config. Nobody has to be logged in at the
-notebook, and its screen shows nothing of what you do. It uses port **5901**:
+Instead of sharing the office screen, `remote-desktop` starts a second, invisible desktop: Mango
+without a monitor, with Noctalia and your normal Mango settings (`mango/settings.conf`). Nobody has
+to be logged in at the notebook, and its screen shows nothing of what you do. It uses port **5901**:
 
 ```powershell
 ssh -L 5901:localhost:5901 <user>@<notebook>
@@ -219,8 +220,9 @@ Reconnect and connect the viewer again.
 
 - **Browsers allow one copy per profile.** If an office session is still running with Zen or Chromium
   open, they won't start in the remote desktop. Log out at the office, or close them there.
-- **If it doesn't start**, it prints the last log lines. More in `journalctl --user -u remote-desktop`
-  and `~/.cache/umbriel/umbriel.log`.
+- **If it doesn't start**, it prints the last log lines. More in `journalctl --user -u remote-desktop`.
+- **The size** (`remote-desktop start 2560x1440`) is set with a `monitor_rule`. If the picture stays
+  at 1920x1080, Mango ignores the rule for virtual screens.
 
 ### What the notebook needs (for sharing the office screen)
 
@@ -256,13 +258,13 @@ Reconnect and connect the viewer again.
   For the remote desktop, see "Remote desktop (VNC)" above.
 - **Super does nothing:** Windows or the VM app is catching the Windows key. Fix it in the hypervisor's
   keyboard settings. Otherwise, for now, set `mod_key = "Alt"` in `umbriel/config.toml`, or replace
-  `SUPER` with `ALT` in `mango/config.conf`.
+  `SUPER` with `ALT` in `mango/settings.conf`.
 - **Invisible mouse pointer:** `WLR_NO_HARDWARE_CURSORS` is already set for the VM. Make sure the guest tools are enabled.
 - **Copy-paste with Windows doesn't work:** VMware's clipboard helper is an X11 program. Here it runs through
   Xwayland, which works only partly or not at all on Wayland. Use a shared folder or `git push`/`pull` instead.
 - **Resolution doesn't follow the VMware window:** set it by hand. Umbriel: `[output.Virtual-1] mode = "1920x1080"`
   in `umbriel/config.toml` (get the name from `umbriel outputs`). Mango: `monitor_rule=name:Virtual-1,width:1920,height:1080,refresh:60`
-  in `mango/config.conf` (get the name from `mmsg get all-monitors`).
+  in `mango/settings.conf` (get the name from `mmsg get all-monitors`).
 
 ## Keybinds compared to dwm
 

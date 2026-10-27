@@ -55,7 +55,7 @@ in
   time.timeZone = "Europe/Zurich";
   i18n.defaultLocale = "en_US.UTF-8";
   # Swiss German. The compositors set their own layout in
-  # umbriel/config.toml and mango/config.conf (setup.sh keeps all three in sync).
+  # umbriel/config.toml and mango/settings.conf (setup.sh keeps all three in sync).
   services.xserver.xkb = {
     layout = "ch";
     variant = "de_nodeadkeys";

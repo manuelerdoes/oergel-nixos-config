@@ -22,6 +22,7 @@ in
   # as soon as you save, with no rebuild.
   xdg.configFile."umbriel/config.toml".source = link "umbriel/config.toml";
   xdg.configFile."mango/config.conf".source = link "mango/config.conf";
+  xdg.configFile."mango/settings.conf".source = link "mango/settings.conf";
 
   # Noctalia's settings stay in ~/.config/noctalia/ and are changed from its
   # settings GUI. To manage them from Nix later, see the Home Manager section

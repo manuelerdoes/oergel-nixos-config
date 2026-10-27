@@ -166,6 +166,58 @@ without joining the machine to the domain.
 - **Quick one-off access without any setup:** in Nautilus, go to *Other Locations → Connect to Server* and
   enter `smb://server/share`.
 
+## Remote desktop (VNC)
+
+`wayvnc` shares the running desktop. It listens only on the notebook itself
+(`127.0.0.1`), so nobody can reach it over the network directly. You get to it
+through an SSH tunnel. SSH encrypts everything and does the login.
+
+```
+home PC --(work VPN)--> notebook:22 (SSH) --tunnel--> wayvnc on 127.0.0.1:5900
+```
+
+### Set up once
+
+1. **Note the notebook's address.** Run `ip -br a` on the notebook. If it changes from day to day,
+   ask IT for a fixed address or a DNS name for it.
+2. **On your home PC (Windows), install a VNC viewer**, e.g. *TigerVNC Viewer* or *RealVNC Viewer*.
+   SSH is already part of Windows.
+3. **Recommended: log in with an SSH key instead of a password.** In PowerShell on the home PC:
+   ```powershell
+   ssh-keygen -t ed25519
+   type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh <user>@<notebook> "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+   ```
+   When `ssh <user>@<notebook>` no longer asks for a password, set `PasswordAuthentication = false`
+   in `configuration.nix` and run `rebuild`.
+
+### Every time
+
+1. **On the home PC, connect Cisco Secure Client** (the work VPN).
+2. **Open the tunnel** in PowerShell and leave the window open:
+   ```powershell
+   ssh -L 5900:localhost:5900 <user>@<notebook>
+   ```
+3. **In the VNC viewer, connect to `localhost:5900`.**
+
+### What the notebook needs
+
+- **You're logged in.** VNC shares a running desktop. After a reboot, someone has to log in at the
+  notebook first. (Automatic login would solve that, but anyone at your desk would then get your desktop.)
+- **It's plugged in.** On power, closing the lid doesn't suspend it. On battery it still does.
+- **No auto-suspend.** If Noctalia is set to suspend when idle, turn that off in its settings.
+- **The lock screen:** test once whether you can unlock it through VNC. If not, turn auto-lock off
+  while you work remotely.
+- **People in the office see the screen.** Whatever you do remotely is visible on the notebook's display.
+
+### If it doesn't work
+
+- **`ssh` times out:** the work network may block SSH from the VPN to office machines. Ask IT to allow
+  port 22 to your notebook.
+- **The viewer connects, but the picture is black or frozen:** check that `wayvnc` is running with
+  `pgrep -a wayvnc` (over SSH). Start it by hand with `wayvnc 127.0.0.1 5900 &` to see its errors.
+- **Several monitors:** wayvnc shows one. `wayvncctl output-cycle` switches to the next one.
+- **Port 5900 is busy on the home PC:** use `ssh -L 5901:localhost:5900 ...` and connect to `localhost:5901`.
+
 ## Troubleshooting
 
 - **Black screen or back at the login screen:** press `Ctrl+Alt+F2` for a text console. Then read the logs.
@@ -175,6 +227,7 @@ without joining the machine to the domain.
 - **Noctalia or terminal windows vanish right after opening (VM):** uncomment `LIBGL_ALWAYS_SOFTWARE`
   in `hosts/<name>/default.nix` and rebuild, then log in again.
 - **Remote login:** the SSH server is on. From another machine: `ssh <user>@<ip>` (IP from `ip -br a`).
+  For the remote desktop, see "Remote desktop (VNC)" above.
 - **Super does nothing:** Windows or the VM app is catching the Windows key. Fix it in the hypervisor's
   keyboard settings. Otherwise, for now, set `mod_key = "Alt"` in `umbriel/config.toml`, or replace
   `SUPER` with `ALT` in `mango/config.conf`.

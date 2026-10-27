@@ -84,9 +84,9 @@
   security.pam.services.greetd.enableGnomeKeyring = true;
   security.polkit.enable = true;
 
-  # ---------------------------------------------------------------- SSH server
-  # Log in from another machine with `ssh <user>@<ip>`. Port 22 is opened in
-  # the firewall automatically.
+  # ------------------------------------------------------------ Remote access
+  # SSH: log in from another machine with `ssh <user>@<ip>`. Port 22 is opened
+  # in the firewall automatically.
   services.openssh = {
     enable = true;
     settings = {
@@ -96,6 +96,15 @@
       PasswordAuthentication = true;
     };
   };
+
+  # Remote desktop: wayvnc (in the package list below) shares the running
+  # desktop. The compositors start it, listening on 127.0.0.1 only, so it's
+  # reached through an SSH tunnel (see README, "Remote desktop"). Port 5900
+  # is not opened in the firewall.
+
+  # Plugged in, a closed lid doesn't suspend, so the notebook stays reachable
+  # in the office. On battery it still suspends as usual.
+  services.logind.settings.Login.HandleLidSwitchExternalPower = "ignore";
 
   # -------------------------------------------------------------------- Audio
   security.rtkit.enable = true;
@@ -138,6 +147,7 @@
     brightnessctl
     playerctl
     slurp # screen picker for screen sharing on Mango
+    wayvnc # remote desktop (VNC), see "Remote access" above
 
     # Work
     teams-for-linux

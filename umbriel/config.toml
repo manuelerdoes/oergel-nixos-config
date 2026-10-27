@@ -8,8 +8,10 @@
 # ==============================================================================
 # General
 [general]
+# nm-applet: shows the VPN login window and remembers it (NetworkManager secret agent)
+# wayvnc: remote desktop, only reachable through an SSH tunnel (127.0.0.1)
 # vmware-user: VMware copy-paste (VM only; on the notebook it just fails silently)
-autostart = ["noctalia", "vmware-user-suid-wrapper"]
+autostart = ["noctalia", "nm-applet --indicator", "wayvnc 127.0.0.1 5900", "vmware-user-suid-wrapper"]
 # "Super" (Windows key). If the VM host captures the Windows key, switch to "Alt"
 # for testing.
 mod_key = "Super"

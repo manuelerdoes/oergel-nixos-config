@@ -85,6 +85,9 @@ in
             "x-systemd.mount-timeout=15s"
             "_netdev"
             "nofail"
+            # Hide it from Nautilus's sidebar: clicking there tries to mount it
+            # as your user, which fails. Open ~/shares/<name> instead.
+            "x-gvfs-hide"
           ];
         }
       ) shares;

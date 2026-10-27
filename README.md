@@ -167,6 +167,33 @@ without joining the machine to the domain.
 - **Quick one-off access without any setup:** in Nautilus, go to *Other Locations → Connect to Server* and
   enter `smb://server/share`.
 
+## SSH to your servers
+
+Put your own `~/.ssh/config` and keys in `~/.ssh/`. 
+
+**Remembering the key passphrase:** GNOME's SSH agent, which comes with the keyring, keeps it.
+
+1. Add this at the top of `~/.ssh/config`:
+   ```
+   Host *
+       AddKeysToAgent yes
+   ```
+2. The first time you `ssh` somewhere, a window asks for the key's passphrase. Tick
+   *Automatically unlock this key whenever I'm logged in*.
+
+From then on it doesn't ask again. The passphrase is stored in your keyring, which your login
+unlocks.
+
+**When copying keys and config over**, SSH refuses files that others can read:
+```sh
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/config ~/.ssh/id_*
+chmod 644 ~/.ssh/*.pub
+```
+
+**Check:** `echo $SSH_AUTH_SOCK` should show `/run/user/<uid>/gcr/ssh`, and `ssh-add -l` lists the
+loaded keys.
+
 ## Remote desktop (VNC)
 
 `wayvnc` shares the running desktop. It listens only on the notebook itself

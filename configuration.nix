@@ -120,6 +120,17 @@ in
     };
   };
 
+  # SSH client: your own ~/.ssh/config (not managed here) and keys. The SSH
+  # agent is GNOME's gcr-ssh-agent, which comes with gnome-keyring. It can
+  # store a key's passphrase in the keyring, which your login unlocks, so
+  # `ssh <server>` doesn't ask again. Programs find the agent through
+  # SSH_AUTH_SOCK; an agent forwarded with `ssh -A` keeps priority.
+  environment.extraInit = ''
+    if [ -z "$SSH_AUTH_SOCK" ] && [ -n "$XDG_RUNTIME_DIR" ]; then
+      export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/gcr/ssh"
+    fi
+  '';
+
   # Remote desktop: wayvnc (in the package list below) shares the running
   # desktop. The compositors start it, listening on 127.0.0.1 only, so it's
   # reached through an SSH tunnel (see README, "Remote desktop"). Port 5900

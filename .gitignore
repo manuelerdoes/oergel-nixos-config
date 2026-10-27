@@ -1,2 +1,7 @@
 result
 result-*
+*.bak
+
+# Exported bookmarks and other private files never go to GitHub.
+*.html
+*.htm

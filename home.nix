@@ -1,5 +1,10 @@
 # Home Manager: your user's dotfiles.
-{ config, username, ... }:
+{
+  config,
+  pkgs,
+  username,
+  ...
+}:
 let
   # Where this repo lives (setup.sh sets it). Don't move the folder afterwards.
   repo = "${config.home.homeDirectory}/oergel-nixos-config";
@@ -22,6 +27,13 @@ in
   # Noctalia's settings stay in ~/.config/noctalia/ and are changed from its
   # settings GUI. To manage them from Nix later, see the Home Manager section
   # of https://docs.noctalia.dev/noctalia/getting-started/nixos/
+
+  home.packages = [
+    # `import-bookmarks FILE.html`: add exported bookmarks to Chromium and Zen.
+    (pkgs.writeShellScriptBin "import-bookmarks" ''
+      exec ${pkgs.python3}/bin/python3 ${./scripts/import-bookmarks.py} "$@"
+    '')
+  ];
 
   programs.bash = {
     enable = true;

@@ -111,6 +111,10 @@ To switch compositors, log out (`Super+Escape` → Logout, or `Super+Shift+Q`) a
 - **Update all software:** `update`. It runs `nix flake update` and then rebuilds.
 - **Undo:** every rebuild is a *generation*. Pick an older one in the boot menu, or run `sudo nixos-rebuild switch --rollback`.
 - **Find packages:** https://search.nixos.org/packages (channel *unstable*). Add them to `environment.systemPackages`.
+- **Import bookmarks:** export them as HTML from your old browser, then close Chromium and Zen and run
+  `import-bookmarks ~/Downloads/bookmarks.html`. Chromium gets them right away. Zen imports them the next
+  time it starts. Existing bookmarks are kept, and duplicates (same URL) are skipped. Keep the HTML file out
+  of the repo (`*.html` is git-ignored anyway). Each browser needs to have been started once before.
 
 ## Troubleshooting
 

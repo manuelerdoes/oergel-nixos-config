@@ -134,6 +134,12 @@
     brightnessctl
     playerctl
     slurp # screen picker for screen sharing on Mango
+
+    # Work
+    teams-for-linux
+    nextcloud-client
+    thunderbird
+    libreoffice
   ];
 
   fonts.packages = with pkgs; [

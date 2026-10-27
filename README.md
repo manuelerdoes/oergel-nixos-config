@@ -215,6 +215,9 @@ home PC --(work VPN)--> notebook:22 (SSH) --tunnel--> wayvnc on 127.0.0.1:5900
   port 22 to your notebook.
 - **The viewer connects, but the picture is black or frozen:** check that `wayvnc` is running with
   `pgrep -a wayvnc` (over SSH). Start it by hand with `wayvnc 127.0.0.1 5900 &` to see its errors.
+- **Mango:** it starts `wayvnc-screencopy`, a patched `wayvnc` (see the top of `configuration.nix`).
+  Mango 0.18 has a bug in the newer capture protocol that crashes the normal `wayvnc` as soon as a viewer
+  connects. Once Mango fixes it, the patch can go.
 - **Several monitors:** wayvnc shows one. `wayvncctl output-cycle` switches to the next one.
 - **Port 5900 is busy on the home PC:** use `ssh -L 5901:localhost:5900 ...` and connect to `localhost:5901`.
 

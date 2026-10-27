@@ -7,6 +7,26 @@
   username,
   ...
 }:
+let
+  # wayvnc always captures with ext-image-copy-capture when the compositor
+  # offers it. Mango 0.18 answers that with a 0x0 image and wayvnc crashes,
+  # so this variant uses the older wlr-screencopy protocol instead. The patch
+  # disables both ext checks (screen and cursor), so wayvnc behaves as on a
+  # compositor without the new protocol. Only Mango starts it (as
+  # wayvnc-screencopy); Umbriel uses the normal wayvnc.
+  wayvnc-screencopy = pkgs.writeShellScriptBin "wayvnc-screencopy" ''
+    exec ${
+      pkgs.wayvnc.overrideAttrs (old: {
+        pname = "wayvnc-screencopy";
+        postPatch = (old.postPatch or "") + ''
+          substituteInPlace src/screencopy-interface.c \
+            --replace-fail "if (wayland->ext_image_copy_capture_manager_v1 &&" \
+                           "if (0 && wayland->ext_image_copy_capture_manager_v1 &&"
+        '';
+      })
+    }/bin/wayvnc "$@"
+  '';
+in
 {
   imports = [
     ./work.nix # file shares, Kerberos, VPN
@@ -148,6 +168,7 @@
     playerctl
     slurp # screen picker for screen sharing on Mango
     wayvnc # remote desktop (VNC), see "Remote access" above
+    wayvnc-screencopy # the same for Mango, see the top of this file
 
     # Work
     teams-for-linux

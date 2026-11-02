@@ -16,10 +16,22 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.home-manager.follows = "home-manager";
     };
+
+    # Secure Boot with your own keys. Only active on hosts that set
+    # boot.lanzaboote.enable (setup.sh asks). Pinned to a release tag.
+    lanzaboote = {
+      url = "github:nix-community/lanzaboote/v1.2.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    { nixpkgs, home-manager, ... }@inputs:
+    {
+      nixpkgs,
+      home-manager,
+      lanzaboote,
+      ...
+    }@inputs:
     let
       # Must be the user you created during the NixOS install (setup.sh sets it).
       username = "merdoes";
@@ -63,6 +75,7 @@
             ./configuration.nix
             ./hosts/${name}
             { networking.hostName = name; }
+            lanzaboote.nixosModules.lanzaboote # does nothing unless enabled
             home-manager.nixosModules.home-manager
             {
               home-manager.useGlobalPkgs = true;

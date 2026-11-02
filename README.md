@@ -16,6 +16,63 @@ mango/settings.conf     Mango settings and keybinds (both reload on save)
 
 Both compositors are installed. You pick one on the login screen, and Noctalia runs in either.
 
+## 1. Installing next to Windows (dual boot)
+
+Skip this for a VM or a machine without Windows. Do the steps in this order:
+
+1. **In Windows, as local admin:**
+   - **Save the BitLocker recovery key** somewhere outside this machine.
+   - **Turn off Fast Startup:** *Control Panel → Power Options → Choose what the power buttons do*,
+     then untick *Turn on fast startup*. Otherwise Windows only half shuts down, which confuses the other system.
+   - **Shrink `C:`:** *Disk Management*, right-click `C:`, then *Shrink Volume*. Free 60 GB or more and
+     leave it *unallocated*.
+   - **Suspend BitLocker for one restart:** *Control Panel → BitLocker → Suspend protection*.
+     That way the next step doesn't trigger the recovery key prompt.
+2. **In the BIOS** (`F1` or `Enter` at boot on Lenovo): turn **Secure Boot off**, then start Windows once.
+   It turns BitLocker back on by itself and adapts to the new setting.
+3. **Boot the NixOS installer** from USB (`F12` for the boot menu on Lenovo). When partitioning,
+   choose **Manual partitioning**:
+   - **The free space:** create a partition with mount point `/`, file system ext4.
+   - **The existing EFI partition** (FAT32, the one with the *boot* flag): set its mount point to `/boot`.
+     **Don't format it.** Windows' bootloader lives on it.
+   - **Don't touch** Windows' partitions (NTFS, and the small *Microsoft reserved* one).
+4. **Continue with step 2 below.** `setup.sh` notices Windows. It then asks whether the clock should
+   run in local time like Windows, which keeps Kerberos working, and puts Windows in the boot menu.
+
+The first Windows start after installing may still ask for the BitLocker recovery key, once.
+
+### Later: Secure Boot (Lanzaboote)
+
+Once everything runs, NixOS can boot with Secure Boot on. That keeps Windows "compliant", and
+BitLocker stops asking for the recovery key. Lanzaboote signs NixOS with keys of your own and
+enrolls them in the firmware **next to Microsoft's**, so Windows keeps booting.
+
+1. **Run `bash setup.sh` again** and answer *yes* at "Use Secure Boot with Lanzaboote?". It
+   creates your keys in `/var/lib/sbctl` and builds the system. Don't reboot yet.
+2. **Check** that the bootloader and the `nixos-generation-*.efi` files are signed: `sudo sbctl verify`.
+   It's normal that the `kernel-*` files aren't.
+3. **In Windows:** *Control Panel → BitLocker → Suspend protection*, for one restart.
+4. **In the BIOS** (`systemctl reboot --firmware-setup` gets you there): *Security → Secure Boot*.
+   Turn it **on**, choose **Reset to Setup Mode**, and press F10.
+   **Not** *Clear All Secure Boot Keys*: that also deletes the list of known-bad bootloaders.
+5. **Back in NixOS:** `sudo sbctl enroll-keys --microsoft`. The `--microsoft` keeps Microsoft's keys.
+   Windows and some hardware need them; without them the machine may not start at all.
+6. **Reboot.** `bootctl status` should show `Secure Boot: enabled (user)`. Windows may ask for the
+   recovery key once more.
+
+Good to know:
+- **Keep `/var/lib/sbctl`**: it holds your keys. Without them, new NixOS builds can't be signed.
+- **USB sticks** (the NixOS installer, other Linux systems) don't boot while Secure Boot is on. For
+  a rescue, turn Secure Boot off in the BIOS for that time.
+- **BIOS updates:** do them in Windows with the Lenovo tool. `fwupd`'s EFI helper isn't signed with
+  your keys.
+- **Going back:** turn Secure Boot off in the BIOS *first*, then run `setup.sh` again and answer *no*.
+
+**Removing NixOS later:** in Windows, delete the NixOS partition in *Disk Management*, extend `C:`
+into the freed space, and delete the `EFI\systemd`, `EFI\nixos` and `loader` folders from the EFI
+partition. Then Windows' boot manager is the only one left. If the firmware still shows a
+"Linux Boot Manager" entry, remove it in the BIOS boot settings.
+
 
 ## 2. Turn on flakes and git in the minimal VM
 
@@ -63,6 +120,7 @@ and shows a summary before changing anything:
 | Machine name | Becomes the hostname, and `hosts/<name>/` holds this machine's settings |
 | Username | Must be the user from the install. Otherwise NixOS creates a new one *without* a password |
 | Bootloader | Detected: systemd-boot on UEFI, GRUB on BIOS (asks which disk) |
+| Dual boot | If Windows is installed: Windows in the boot menu, clock in local time |
 | stateVersion | Taken from the installer's `/etc/nixos/configuration.nix` |
 | Keyboard | Written to `configuration.nix`, `umbriel/config.toml` and `mango/settings.conf` |
 | VM only | Guest tools for the hypervisor it detects, plus the graphics workarounds |
@@ -120,6 +178,45 @@ To switch compositors, log out (`Super+Escape` → Logout, or `Super+Shift+Q`) a
   `import-bookmarks ~/Downloads/bookmarks.html`. Chromium gets them right away. Zen imports them the next
   time it starts. Existing bookmarks are kept, and duplicates (same URL) are skipped. Keep the HTML file out
   of the repo (`*.html` is git-ignored anyway). Each browser needs to have been started once before.
+
+## Updates
+
+### Software
+
+```sh
+update
+```
+
+It runs `nix flake update`, which writes the newest versions of nixpkgs, Home Manager and Zen to
+`flake.lock`, and then `rebuild`. Afterwards:
+
+- **Commit and push `flake.lock`**, so every machine uses exactly the same versions.
+- **Reboot if the kernel changed.** Everything else applies immediately.
+- **If something broke**, pick the previous generation in the boot menu, or run
+  `sudo nixos-rebuild switch --rollback`.
+
+Useful extras:
+```sh
+nix flake update zen-browser --flake ~/oergel-nixos-config        # update only one input
+nix store diff-closures /run/booted-system /run/current-system    # what changed since boot
+```
+
+### BIOS and firmware
+
+`fwupd` does what the Lenovo tool does on Windows. Lenovo publishes BIOS updates for most
+ThinkPads and ThinkCentres on LVFS, and for docks and other devices too.
+
+```sh
+fwupdmgr refresh         # fetch the list of available updates
+fwupdmgr get-updates     # show what's available for this machine
+fwupdmgr update          # install; BIOS updates are applied during the next reboot
+```
+
+- **Keep the notebook plugged in.** BIOS updates refuse to run on battery.
+- **The updates need the EFI partition** at `/boot`. That's the normal layout on a UEFI install.
+- **If `get-updates` finds nothing for the BIOS,** check your model at https://fwupd.org/lvfs/devices.
+  Lenovo also offers a bootable BIOS-update ISO for every model on its support site.
+- **In a VM** it finds nothing, because the virtual hardware has no firmware updates.
 
 ## Work: file shares and VPN
 

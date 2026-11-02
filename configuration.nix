@@ -152,6 +152,12 @@ in
   # Trash, USB drives and network shares in the file manager.
   services.gvfs.enable = true;
 
+  # BIOS and device firmware updates (Lenovo publishes them on LVFS):
+  # fwupdmgr refresh && fwupdmgr get-updates && fwupdmgr update
+  # With Secure Boot on (Lanzaboote), BIOS updates need fwupd's EFI helper to be
+  # signed with your keys; it isn't, so do those from Windows instead.
+  services.fwupd.enable = true;
+
   # File-chooser dialogs. Umbriel's own portal handles screen sharing on
   # Umbriel; on Mango it's xdg-desktop-portal-wlr (added by programs.mango).
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];

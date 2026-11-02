@@ -153,6 +153,12 @@ info "Home Manager links the Umbriel and Mango configs to ~/$repo_rel. Don't mov
 
 # -------------------------------------------------------------------- Bootloader
 step "Bootloader"
+boot_limit=10
+dualboot=no
+windows_same_esp=no
+clock_local=no
+secureboot=no
+had_secureboot=no
 if [ -d /sys/firmware/efi ]; then
   boot_mode=uefi
   info "This machine boots with UEFI, so the bootloader will be systemd-boot."
@@ -162,6 +168,60 @@ if [ -d /sys/firmware/efi ]; then
   fi
   efi_mount="$(installer_value boot.loader.efi.efiSysMountPoint)"
   efi_mount="${efi_mount:-/boot}"
+
+  # Every kernel the boot menu offers lives on the EFI partition, so a small
+  # one gets fewer entries. Windows' own default is often only 100 MB.
+  esp_size="$(df -BM --output=size "$efi_mount" 2>/dev/null | tail -n 1 | tr -dc '0-9')"
+  if [ -n "$esp_size" ] && [ "$esp_size" -lt 500 ]; then
+    boot_limit=3
+    warn "The EFI partition is only ${esp_size} MB. The boot menu keeps the last $boot_limit versions."
+  elif [ -n "$esp_size" ]; then
+    info "EFI partition: ${esp_size} MB, enough for the last $boot_limit versions in the boot menu."
+  fi
+
+  # Dual boot: the firmware's boot entries are readable without sudo.
+  for entry in /sys/firmware/efi/efivars/Boot[0-9A-F][0-9A-F][0-9A-F][0-9A-F]-*; do
+    [ -r "$entry" ] || continue
+    # The names are UTF-16, so drop the zero bytes before comparing.
+    if [[ "$(tr -d '\0' <"$entry")" == *"Windows Boot Manager"* ]]; then
+      dualboot=yes
+      break
+    fi
+  done
+  if [ "$dualboot" = yes ]; then
+    step "Dual boot"
+    info "Windows is installed on this machine."
+    # systemd-boot lists Windows by itself only if it's on the same EFI partition.
+    windows_efi="$efi_mount/EFI/Microsoft/Boot/bootmgfw.efi"
+    if [ -r "$efi_mount/EFI" ] && [ -e "$windows_efi" ]; then
+      windows_same_esp=yes
+    else
+      info "Checking whether Windows uses the same EFI partition (needs sudo)."
+      sudo test -e "$windows_efi" && windows_same_esp=yes
+    fi
+    if [ "$windows_same_esp" = yes ]; then
+      info "It's on the same EFI partition, so the boot menu lists it by itself."
+    else
+      warn "It's on another EFI partition (another disk?). Pick it in the firmware boot menu (F12 on Lenovo)."
+    fi
+    info "Windows keeps the hardware clock in local time, Linux in UTC. If they differ, the clock is"
+    info "an hour off after every switch, and Kerberos (work shares) refuses to work."
+    yes_no "Keep the hardware clock in local time, like Windows?" y && clock_local=yes
+  fi
+
+  # Secure Boot with your own keys. Best done once everything else works.
+  step "Secure Boot (optional)"
+  if [ -f "$host_dir/default.nix" ] && grep -q 'boot\.lanzaboote' "$host_dir/default.nix"; then
+    had_secureboot=yes
+  fi
+  info "Lanzaboote signs NixOS with your own keys, so it boots with Secure Boot on."
+  info "Windows keeps booting too. Best done once everything else works:"
+  info "first set up without it, then run setup.sh again. Steps: README, 'Secure Boot'."
+  yes_no "Use Secure Boot with Lanzaboote?" "$([ "$had_secureboot" = yes ] && echo y || echo n)" && secureboot=yes
+  if [ "$had_secureboot" = yes ] && [ "$secureboot" = no ]; then
+    warn "Switching back to plain systemd-boot: turn Secure Boot OFF in the BIOS before you reboot,"
+    warn "or the machine won't start NixOS."
+  fi
 else
   boot_mode=bios
   info "This machine boots the old way (BIOS), so the bootloader will be GRUB."
@@ -328,9 +388,25 @@ fi
 # ==============================================================================
 # Summary
 
-if [ "$boot_mode" = uefi ]; then
+if [ "$boot_mode" = uefi ] && [ "$secureboot" = yes ]; then
+  boot_block="  # Secure Boot with your own keys (Lanzaboote). It takes systemd-boot's
+  # place and signs the bootloader and kernels with the keys in
+  # /var/lib/sbctl. Setup steps: README, \"Secure Boot\".
+  boot.lanzaboote = {
+    enable = true;
+    pkiBundle = \"/var/lib/sbctl\";
+    configurationLimit = $boot_limit; # keeps the EFI partition from filling up
+  };
+  # No editing of the kernel command line in the boot menu.
+  boot.loader.systemd-boot.editor = false;
+  boot.loader.efi.canTouchEfiVariables = true;
+  environment.systemPackages = [ pkgs.sbctl ]; # sbctl status, verify, enroll-keys"
+  [ "$efi_mount" != /boot ] && boot_block+="
+  boot.loader.efi.efiSysMountPoint = \"$efi_mount\";"
+  boot_summary="Lanzaboote, Secure Boot with your own keys (UEFI, EFI partition at $efi_mount)"
+elif [ "$boot_mode" = uefi ]; then
   boot_block="  boot.loader.systemd-boot.enable = true;
-  boot.loader.systemd-boot.configurationLimit = 10; # keeps /boot from filling up
+  boot.loader.systemd-boot.configurationLimit = $boot_limit; # keeps the EFI partition from filling up
   boot.loader.efi.canTouchEfiVariables = true;"
   [ "$efi_mount" != /boot ] && boot_block+="
   boot.loader.efi.efiSysMountPoint = \"$efi_mount\";"
@@ -342,12 +418,37 @@ else
   boot_summary="GRUB on $grub_device (BIOS)"
 fi
 
+dual_block=""
+dual_summary="no Windows found"
+if [ "$dualboot" = yes ]; then
+  if [ "$windows_same_esp" = yes ]; then
+    dual_block="  # Windows is on the same EFI partition, so systemd-boot lists it by itself.
+  # Show the menu long enough to pick it.
+  boot.loader.timeout = 5;"
+    dual_summary="Windows in the boot menu"
+  else
+    dual_block="  # Windows is on another EFI partition: pick it in the firmware boot menu
+  # (F12 on Lenovo)."
+    dual_summary="Windows via the firmware boot menu (F12)"
+  fi
+  if [ "$clock_local" = yes ]; then
+    dual_block+="
+  # Windows keeps the hardware clock in local time. Doing the same keeps the
+  # clock right in both systems (Kerberos needs a correct clock).
+  time.hardwareClockInLocalTime = true;"
+    dual_summary+=", clock in local time"
+  fi
+  dual_block="  # ----------------------------------------------------------------- Dual boot
+$dual_block"
+fi
+
 step "Summary"
 cat <<EOF
   Machine:       $host  (hosts/$host/)
   User:          $username
   Repo:          ~/$repo_rel
   Bootloader:    $boot_summary
+  Dual boot:     $dual_summary
   stateVersion:  $state_version
   Keyboard:      $kb_layout${kb_variant:+ ($kb_variant)}
   VM:            $virt
@@ -391,7 +492,7 @@ backup "$host_file"
   cat <<EOF
 # Machine-specific settings for "$host". The hostname is the folder name.
 # Generated by setup.sh on $(date +%F). Edit freely, or run setup.sh again.
-{ username, ... }:
+{ pkgs, username, ... }:
 {
   imports = [ ./hardware-configuration.nix ];
 
@@ -399,6 +500,7 @@ backup "$host_file"
 $boot_block
 
 EOF
+  [ -n "$dual_block" ] && printf '%s\n\n' "$dual_block"
   [ -n "$vm_block" ] && printf '%s\n\n' "$vm_block"
   cat <<EOF
   # Set once at install time; never change it, even when you update NixOS.
@@ -440,6 +542,17 @@ if [ "$setup_work" = yes ]; then
   info "private/work.nix written (stays on this machine)"
 fi
 
+# Secure Boot keys: Lanzaboote signs with them during the build, so they have
+# to exist before it. They stay on this machine, readable only by root.
+if [ "$secureboot" = yes ]; then
+  if sudo test -d /var/lib/sbctl/keys; then
+    info "Secure Boot keys already exist in /var/lib/sbctl"
+  else
+    info "Creating your Secure Boot keys in /var/lib/sbctl (needs sudo)."
+    sudo nix-shell -p sbctl --run "sbctl create-keys"
+  fi
+fi
+
 # Flakes only see files that git knows about.
 git_cmd add -A
 info "All files added to git (flakes ignore untracked files)"
@@ -457,6 +570,21 @@ if yes_no "Build and switch to the new configuration now?" y; then
   info "Done. From now on, rebuild with:  sudo nixos-rebuild switch --impure --flake ~/$repo_rel"
   info "(after the next login also just:  rebuild)"
   info "Don't forget to commit and push your changes:  git commit -am 'Set up $host' && git push"
+  if [ "$dualboot" = yes ]; then
+    info "Dual boot: Windows may ask for its BitLocker recovery key on its next start. Keep it at hand."
+  fi
+  if [ "$secureboot" = yes ] && [ "$had_secureboot" = no ]; then
+    step "Secure Boot: the remaining steps (also in the README)"
+    info "1. Check:  sudo sbctl verify   (the bootloader and nixos-generation-*.efi are signed)"
+    info "2. Only with Windows: Control Panel -> BitLocker -> Suspend protection (for one restart)"
+    info "3. Into the BIOS:  systemctl reboot --firmware-setup"
+    info "   Security -> Secure Boot: turn it on, then 'Reset to Setup Mode', then F10."
+    info "   NOT 'Clear All Secure Boot Keys'."
+    info "4. Back in NixOS:  sudo sbctl enroll-keys --microsoft"
+    info "   (--microsoft keeps Microsoft's keys, which Windows and the hardware need)"
+    info "5. Reboot. 'bootctl status' should show: Secure Boot: enabled (user)"
+    info "Skip the reboot question below, and do these steps first."
+  fi
   if [ "$setup_work" = yes ]; then
     info "Work shares: run 'kinit <your Windows username>', then open ~/shares/<name>."
     info "VPN: set it up once with nm-connection-editor (see README, 'Work: file shares and VPN')."

@@ -168,8 +168,14 @@ in
   # ----------------------------------------------------------------- Programs
   environment.systemPackages = with pkgs; [
     # Apps
-    inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}.default # binary: zen-beta
-    chromium
+    # Both browsers: middle-click on a page for Windows-style autoscroll
+    # (move the mouse to scroll, click again to stop).
+    (inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}.default.override {
+      extraPrefs = ''defaultPref("general.autoScroll", true);'';
+    }) # binary: zen-beta
+    (chromium.override {
+      commandLineArgs = "--enable-blink-features=MiddleClickAutoscroll";
+    })
     vscode
     kitty # terminal
     nautilus # file manager

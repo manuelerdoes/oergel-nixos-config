@@ -334,7 +334,8 @@ to be logged in at the notebook, and its screen shows nothing of what you do. It
 ssh -L 5901:localhost:5901 <user>@<notebook>
 ```
 ```sh
-remote-desktop start            # or e.g. remote-desktop start 2560x1440
+remote-desktop start            # or e.g. remote-desktop start 1470x956
+remote-desktop resize 1470x956  # change the size while it runs; windows stay open
 remote-desktop status
 remote-desktop stop             # closes all of its windows
 ```
@@ -342,11 +343,33 @@ remote-desktop stop             # closes all of its windows
 Connect the VNC viewer to `localhost:5901`. The desktop keeps running if the SSH connection drops.
 Reconnect and connect the viewer again.
 
-- **Browsers allow one copy per profile.** If an office session is still running with Zen or Chromium
-  open, they won't start in the remote desktop. Log out at the office, or close them there.
+- **Browsers allow one copy per profile.** If Zen or Chromium is still open in the office session,
+  starting it in the remote desktop just opens a new window in the running copy, on the office
+  screen, where you can't see it. Close the browser at the office (or log out there) before you
+  leave.
 - **If it doesn't start**, it prints the last log lines. More in `journalctl --user -u remote-desktop`.
-- **The size** (`remote-desktop start 2560x1440`) is set with a `monitor_rule`. If the picture stays
-  at 1920x1080, Mango ignores the rule for virtual screens.
+- **The size:** make it match the screen you connect from, or you have to scroll around. A 13"
+  MacBook Air is 1470x956 by default, a 15" one 1710x1112 (macOS: System Settings → Displays). With
+  the menu bar and the viewer's title bar, a bit less height fits better unless the viewer is full
+  screen (on a 13" Air with TigerVNC in a window, 1440x900 fits). If the viewer doesn't follow a
+  `resize`, reconnect it.
+- **Two wayvncs:** the office session's wayvnc owns the default control socket, so the one for the
+  remote desktop gets its own (`-S`). Without it, it refuses to start.
+
+### Finding the notebook's address from home
+
+The address changes now and then (e.g. after a restart). Under Windows, `lib747` worked because
+Windows updates its entry `lib747.d.ethz.ch` in the AD DNS. NixOS can't (only the Windows computer
+account may change it), so that name points to the last Windows address. Don't use it.
+
+Instead, the notebook writes its address to **`~/polybox/aktuell/current-ip.txt`** every 30 minutes
+and shortly after a restart. The Nextcloud client syncs it, so you see it in polybox at home.
+
+- **After a restart**, the Nextcloud client only runs once someone logs in. Until then polybox shows
+  the old address.
+- `publish-ip` writes it right away. Log: `journalctl --user -u publish-ip`.
+
+The proper fix is a fixed address or DNS name from IT (MAC of the dock: `a8:2b:dd:3c:c1:e0`).
 
 ### What the notebook needs (for sharing the office screen)
 

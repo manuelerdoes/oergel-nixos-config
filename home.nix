@@ -8,6 +8,19 @@
 }:
 let
   link = path: config.lib.file.mkOutOfStoreSymlink "${repo}/${path}";
+
+  # `publish-ip`: writes the current IP address to
+  # ~/polybox/aktuell/current-ip.txt. Runs every 30 minutes (timer below).
+  publish-ip = pkgs.writeShellScriptBin "publish-ip" ''
+    export PATH=${
+      pkgs.lib.makeBinPath [
+        pkgs.coreutils
+        pkgs.gnused
+        pkgs.iproute2
+      ]
+    }:$PATH
+    exec ${pkgs.bash}/bin/bash ${./scripts/publish-ip.sh} "$@"
+  '';
 in
 {
   home.username = username;
@@ -33,11 +46,32 @@ in
     (pkgs.writeShellScriptBin "import-bookmarks" ''
       exec ${pkgs.python3}/bin/python3 ${./scripts/import-bookmarks.py} "$@"
     '')
-    # `remote-desktop start|stop|status`: a separate desktop over VNC, for SSH.
+    # `remote-desktop start|resize|stop|status`: a separate desktop over VNC, for SSH.
     (pkgs.writeShellScriptBin "remote-desktop" ''
-      exec ${pkgs.bash}/bin/bash ${./scripts/remote-desktop.sh} "$@"
+      WLR_RANDR=${pkgs.wlr-randr}/bin/wlr-randr exec ${pkgs.bash}/bin/bash ${./scripts/remote-desktop.sh} "$@"
     '')
+    publish-ip
   ];
+
+  # The notebook's IP address changes now and then. This keeps the current
+  # one in polybox (synced by the Nextcloud client), so you can find it from
+  # home. It also runs while nobody is logged in (linger in
+  # configuration.nix), but the sync only happens once someone logs in.
+  systemd.user.services.publish-ip = {
+    Unit.Description = "Write the IP address to polybox";
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${publish-ip}/bin/publish-ip";
+    };
+  };
+  systemd.user.timers.publish-ip = {
+    Unit.Description = "Write the IP address to polybox every 30 minutes";
+    Timer = {
+      OnStartupSec = "1min"; # shortly after boot (or login)
+      OnUnitActiveSec = "30min";
+    };
+    Install.WantedBy = [ "timers.target" ];
+  };
 
   programs.bash = {
     enable = true;

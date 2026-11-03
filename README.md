@@ -6,6 +6,8 @@ flake.nix               entry point: inputs (nixpkgs, home-manager, zen); finds 
 configuration.nix       shared by all machines: desktop, apps, audio, login screen, SSH
 hosts/<name>/default.nix                one folder per machine (name = hostname):
 hosts/<name>/hardware-configuration.nix   bootloader, VM tools, stateVersion, disks
+hosts/<name>/custom.nix                 your own settings for that machine (optional;
+                                          setup.sh never touches it, default.nix loads it)
 home.nix                Home Manager: your user's dotfiles
 work.nix                work: file shares (SMB + Kerberos), Cisco VPN
 private/work.nix        your domain and shares; git-ignored, written by setup.sh
@@ -368,6 +370,7 @@ and shortly after a restart. The Nextcloud client syncs it, so you see it in pol
 - **After a restart**, the Nextcloud client only runs once someone logs in. Until then polybox shows
   the old address.
 - `publish-ip` writes it right away. Log: `journalctl --user -u publish-ip`.
+- Only lib747 does this (set in `hosts/lib747/custom.nix`).
 
 The proper fix is a fixed address or DNS name from IT (MAC of the dock: `a8:2b:dd:3c:c1:e0`).
 

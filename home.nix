@@ -79,4 +79,10 @@ in
       update = "nix flake update --flake ${repo} && sudo nixos-rebuild switch --impure --flake ${repo}";
     };
   };
+  home.pointerCursor = {
+    package = pkgs.bibata-cursors;   # or adwaita-icon-theme, phinger-cursors, …
+    name = "Bibata-Modern-Classic";
+    size = 24;
+    gtk.enable = true;
+  };
 }

@@ -65,6 +65,12 @@ in
     Install.WantedBy = [ "timers.target" ];
   };
 
+  programs.kitty = {
+    enable = true;
+    # Close windows and tabs without asking, even if a program is still running.
+    settings.confirm_os_window_close = 0;
+  };
+
   programs.bash = {
     enable = true;
     shellAliases = {

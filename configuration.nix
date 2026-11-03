@@ -189,6 +189,7 @@ in
     slurp # screen picker for screen sharing on Mango
     wayvnc # remote desktop (VNC), see "Remote access" above
     wayvnc-screencopy # the same for Mango, see the top of this file
+    python3
 
     # Work
     teams-for-linux

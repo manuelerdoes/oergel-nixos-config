@@ -96,6 +96,7 @@ default_extent_fraction = 0.5
 "Mod+V" = "spawn:noctalia msg panel-toggle clipboard"
 "Mod+Shift+S" = "spawn:noctalia msg screenshot-region"
 "Mod+Escape" = "spawn:noctalia msg panel-toggle session" # lock / logout / reboot
+"Mod+Shift+L" = "spawn:noctalia msg session lock"
 
 # --- Focus (dwm: focusstack) --------------------------------------------------
 "Mod+J" = "window-focus-next"

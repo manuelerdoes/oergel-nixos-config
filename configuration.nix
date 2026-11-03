@@ -202,4 +202,6 @@ in
     noto-fonts-color-emoji
     nerd-fonts.jetbrains-mono
   ];
+
+  programs.nix-ld.enable = true;
 }

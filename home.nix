@@ -39,6 +39,32 @@ in
     '')
   ];
 
+  # Daily wallpaper: Bing's "image of the day" (the same kind of nature photos
+  # as Windows Spotlight). Images are kept in ~/Pictures/Wallpapers/bing.
+  # Run it by hand with `systemctl --user start bing-wallpaper`.
+  systemd.user.services.bing-wallpaper = {
+    Unit = {
+      Description = "Set Bing image of the day as Noctalia wallpaper";
+      After = [ "network-online.target" ];
+    };
+    Service = {
+      Type = "oneshot";
+      Environment = [
+        "PATH=${pkgs.lib.makeBinPath [ pkgs.curl pkgs.jq pkgs.coreutils ]}:/run/current-system/sw/bin"
+      ];
+      ExecStart = "${pkgs.bash}/bin/bash ${./scripts/bing-wallpaper.sh}";
+    };
+  };
+  systemd.user.timers.bing-wallpaper = {
+    Unit.Description = "Fetch the Bing wallpaper daily";
+    Timer = {
+      OnStartupSec = "1min"; # shortly after login, once Noctalia is up
+      OnCalendar = "hourly"; # catches the new image soon after Bing changes it
+      Persistent = true;
+    };
+    Install.WantedBy = [ "timers.target" ];
+  };
+
   programs.bash = {
     enable = true;
     shellAliases = {

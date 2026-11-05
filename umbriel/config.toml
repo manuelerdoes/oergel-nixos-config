@@ -54,7 +54,7 @@ saturation = 1.1
 [input.keyboard]
 # Swiss German; "us" for US
 layout = "ch"
-variant = "de_nodeadkeys"
+variant = ""
 numlock_toggle = true
 
 # [input.focus]

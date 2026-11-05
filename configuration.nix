@@ -5,9 +5,38 @@
   pkgs,
   inputs,
   username,
+  repo,
   ...
 }:
 let
+  # `rebuild` and `update` are real commands (not shell aliases), so they work
+  # with and without sudo. --impure lets the build read the git-ignored
+  # private/work.nix.
+  rebuild = pkgs.writeShellScriptBin "rebuild" ''
+    exec sudo nixos-rebuild switch --impure --flake ${repo} "$@"
+  '';
+  update = pkgs.writeShellApplication {
+    name = "update";
+    runtimeInputs = [ pkgs.util-linux ];
+    text = ''
+      # Anything root ever created in the repo (e.g. from a `sudo git ...`)
+      # makes `nix flake update` fail with "permission denied", so fix it first.
+      if [ -n "$(find ${repo} ! -user ${username} -print -quit)" ]; then
+        echo "Giving files in ${repo} back to ${username} ..."
+        sudo chown -R ${username}: ${repo}
+      fi
+
+      # flake.lock and git belong to ${username}, so never update them as root.
+      if [ "$(id -u)" -eq 0 ]; then
+        runuser -u ${username} -- nix flake update --flake ${repo}
+      else
+        nix flake update --flake ${repo}
+      fi
+
+      exec ${rebuild}/bin/rebuild "$@"
+    '';
+  };
+
   # wayvnc always captures with ext-image-copy-capture when the compositor
   # offers it. Mango 0.18 answers that with a 0x0 image and wayvnc crashes,
   # so this variant uses the older wlr-screencopy protocol instead. The patch
@@ -58,7 +87,7 @@ in
   # umbriel/config.toml and mango/settings.conf (setup.sh keeps all three in sync).
   services.xserver.xkb = {
     layout = "ch";
-    variant = "de_nodeadkeys";
+    variant = ""; # standard, with dead keys
   };
   console.useXkbConfig = true; # text console (TTY) uses the same layout
 
@@ -158,6 +187,26 @@ in
   # signed with your keys; it isn't, so do those from Windows instead.
   services.fwupd.enable = true;
 
+  # Local LLMs for AI spell checking in Thunderbird (e.g. the ThunderAI add-on,
+  # pointed at http://localhost:11434). The Vulkan build uses the Radeon 860M;
+  # ROCm doesn't properly support its chip (gfx1152). Check that the GPU was
+  # picked up with: journalctl -u ollama | grep -iE 'vulkan|igpu'
+  services.ollama = {
+    enable = true;
+    package = pkgs.ollama-vulkan;
+    # Downloaded in the background after a rebuild (ollama-model-loader service).
+    loadModels = [
+      "gemma3:12b" # good German, ~8 GB
+      "gemma3:4b" # faster, for quick checks
+    ];
+    environmentVariables = {
+      # Thunderbird add-ons call Ollama from a moz-extension:// origin.
+      OLLAMA_ORIGINS = "moz-extension://*";
+      # Ollama skips integrated GPUs by default and would run on the CPU only.
+      OLLAMA_IGPU_ENABLE = "1";
+    };
+  };
+
   # File-chooser dialogs. Umbriel's own portal handles screen sharing on
   # Umbriel; on Mango it's xdg-desktop-portal-wlr (added by programs.mango).
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
@@ -167,6 +216,8 @@ in
 
   # ----------------------------------------------------------------- Programs
   environment.systemPackages = with pkgs; [
+    rebuild # sudo nixos-rebuild switch for this repo
+    update # nix flake update, then rebuild
     # Apps
     # Both browsers: middle-click on a page for Windows-style autoscroll
     # (move the mouse to scroll, click again to stop).
@@ -196,12 +247,14 @@ in
     wayvnc # remote desktop (VNC), see "Remote access" above
     wayvnc-screencopy # the same for Mango, see the top of this file
     python3
+    htop
 
     # Work
     teams-for-linux
     nextcloud-client
     thunderbird
     libreoffice
+    claude-code
   ];
 
   fonts.packages = with pkgs; [

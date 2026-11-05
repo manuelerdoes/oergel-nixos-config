@@ -71,15 +71,10 @@ in
     settings.confirm_os_window_close = 0;
   };
 
-  programs.bash = {
-    enable = true;
-    shellAliases = {
-      # --impure lets the build read the git-ignored private/work.nix.
-      rebuild = "sudo nixos-rebuild switch --impure --flake ${repo}";
-      update = "nix flake update --flake ${repo} && sudo nixos-rebuild switch --impure --flake ${repo}";
-    };
-  };
+  # `rebuild` and `update` are commands defined in configuration.nix.
+  programs.bash.enable = true;
   home.pointerCursor = {
+    enable = true;
     package = pkgs.bibata-cursors;   # or adwaita-icon-theme, phinger-cursors, …
     name = "Bibata-Modern-Classic";
     size = 24;

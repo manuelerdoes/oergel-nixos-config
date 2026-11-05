@@ -139,7 +139,7 @@ For a VMware VM, also check these settings in VMware Workstation Player:
 
 ## 5. After the first build
 
-From now on, `rebuild` (an alias) rebuilds. The long form is
+From now on, `rebuild` rebuilds (a command from `configuration.nix`, so it also works under `sudo`). The long form is
 `sudo nixos-rebuild switch --impure --flake ~/oergel-nixos-config`, and it picks this machine by its hostname.
 `--impure` lets the build read `private/work.nix`, which git doesn't track. Without it, the build prints a
 warning and leaves out the work shares.
@@ -190,7 +190,9 @@ update
 ```
 
 It runs `nix flake update`, which writes the newest versions of nixpkgs, Home Manager and Zen to
-`flake.lock`, and then `rebuild`. Afterwards:
+`flake.lock`, and then `rebuild`. It works with or without `sudo`. If root ever left files in the repo
+(e.g. after a `sudo git ...`), it gives them back to you first, since those make `nix flake update` fail
+with "permission denied". Afterwards:
 
 - **Commit and push `flake.lock`**, so every machine uses exactly the same versions.
 - **Reboot if the kernel changed.** Everything else applies immediately.

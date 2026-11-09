@@ -24,9 +24,10 @@ in
   xdg.configFile."mango/config.conf".source = link "mango/config.conf";
   xdg.configFile."mango/settings.conf".source = link "mango/settings.conf";
 
-  # Noctalia's settings stay in ~/.config/noctalia/ and are changed from its
-  # settings GUI. To manage them from Nix later, see the Home Manager section
-  # of https://docs.noctalia.dev/noctalia/getting-started/nixos/
+  # Noctalia reads this file first; its settings window saves changes to
+  # ~/.local/state/noctalia/settings.toml, which overrides it. Settings worth
+  # keeping for a fresh setup go in noctalia/config.toml.
+  xdg.configFile."noctalia/config.toml".source = link "noctalia/config.toml";
 
   home.packages = [
     # `import-bookmarks FILE.html`: add exported bookmarks to Chromium and Zen.

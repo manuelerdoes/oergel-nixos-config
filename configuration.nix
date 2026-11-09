@@ -83,6 +83,10 @@ in
   # ---------------------------------------------------------- Locale & keyboard
   time.timeZone = "Europe/Zurich";
   i18n.defaultLocale = "en_US.UTF-8";
+  # Programs stay in English, but dates and times use the Swiss format:
+  # 24-hour clock (14:05:33) and day.month.year (09.11.2026).
+  # Weekday and month names, where a program spells them out, are German.
+  i18n.extraLocaleSettings.LC_TIME = "de_CH.UTF-8";
   # Swiss German. The compositors set their own layout in
   # umbriel/config.toml and mango/settings.conf (setup.sh keeps all three in sync).
   services.xserver.xkb = {
@@ -221,8 +225,13 @@ in
     # Apps
     # Both browsers: middle-click on a page for Windows-style autoscroll
     # (move the mouse to scroll, click again to stop).
+    # Zen and Thunderbird: use_os_locales makes them show dates in the
+    # system's Swiss format (LC_TIME above) instead of the American one.
     (inputs.zen-browser.packages.${pkgs.stdenv.hostPlatform.system}.default.override {
-      extraPrefs = ''defaultPref("general.autoScroll", true);'';
+      extraPrefs = ''
+        defaultPref("general.autoScroll", true);
+        defaultPref("intl.regional_prefs.use_os_locales", true);
+      '';
     }) # binary: zen-beta
     (chromium.override {
       commandLineArgs = "--enable-blink-features=MiddleClickAutoscroll";
@@ -252,7 +261,9 @@ in
     # Work
     teams-for-linux
     nextcloud-client
-    thunderbird
+    (thunderbird.override {
+      extraPrefs = ''defaultPref("intl.regional_prefs.use_os_locales", true);'';
+    })
     libreoffice
     claude-code
   ];

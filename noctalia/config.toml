@@ -1,0 +1,10 @@
+# Noctalia config. Linked to ~/.config/noctalia/config.toml by home.nix.
+# Noctalia reads this first. Anything you change in its settings window is
+# saved to ~/.local/state/noctalia/settings.toml and overrides this file.
+# Check it from a terminal with:  noctalia config validate ~/.config/noctalia
+#
+# Reference: https://docs.noctalia.dev/noctalia/
+
+[shell]
+# Swiss date in the bar clock: 09.11.2026 (the time stays the default 24-hour).
+date_format = "%d.%m.%Y"

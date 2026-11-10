@@ -1,6 +1,7 @@
 # Home Manager: your user's dotfiles.
 {
   config,
+  lib,
   pkgs,
   username,
   repo, # where this repo lives, set in flake.nix
@@ -66,6 +67,13 @@ in
     };
     Install.WantedBy = [ "timers.target" ];
   };
+
+  # LibreOffice's built-in LanguageTool checker uses the local server
+  # (services.languagetool in configuration.nix). Its settings file is also
+  # written by LibreOffice itself, so the script only updates two entries.
+  home.activation.libreofficeLanguagetool = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    run ${pkgs.python3}/bin/python3 -I ${./scripts/libreoffice-languagetool.py} http://localhost:8081/v2
+  '';
 
   programs.kitty = {
     enable = true;

@@ -55,6 +55,51 @@ let
       })
     }/bin/wayvnc "$@"
   '';
+
+  # Grammar check anywhere: select text, press Super+C (bound in Mango and
+  # Umbriel), the local Ollama corrects it and pastes it over the selection.
+  # Pasting uses ydotool (programs.ydotool below), not wtype: GTK3 apps such
+  # as Evolution ignore wtype's Ctrl+V because of its private keymap.
+  proofread = pkgs.writeShellApplication {
+    name = "proofread";
+    runtimeInputs = with pkgs; [
+      wl-clipboard
+      ydotool
+      jq
+      curl
+      libnotify
+    ];
+    text = builtins.readFile ./scripts/proofread.sh;
+  };
+
+  # Rule-based second opinion: select text, press Super+Alt+C, and a window
+  # lists what the local LanguageTool server (services.languagetool) finds.
+  languagetool-check = pkgs.writeShellApplication {
+    name = "languagetool-check";
+    runtimeInputs = with pkgs; [
+      wl-clipboard
+      jq
+      curl
+      libnotify
+      zenity
+    ];
+    text = builtins.readFile ./scripts/languagetool-check.sh;
+  };
+
+  # The LanguageTool add-ons for Zen and Thunderbird, installed through
+  # policies and pointed at the local server. Their German variant can't be
+  # set this way: set it to "Switzerland" once in each add-on's settings,
+  # otherwise they suggest "ß".
+  languagetoolAddon = id: url: {
+    ExtensionSettings.${id} = {
+      install_url = url;
+      installation_mode = "normal_installed";
+    };
+    "3rdparty".Extensions.${id} = {
+      apiServerUrl = "http://localhost:8081/v2";
+      disablePrivacyConfirmation = true; # texts stay on this machine
+    };
+  };
 in
 {
   imports = [
@@ -106,6 +151,7 @@ in
       "networkmanager"
       "video"
       "audio"
+      "ydotool" # simulated key presses, used by `proofread` to paste
     ];
   };
 
@@ -192,7 +238,8 @@ in
   services.fwupd.enable = true;
 
   # Local LLMs for AI spell checking in Thunderbird (e.g. the ThunderAI add-on,
-  # pointed at http://localhost:11434). The Vulkan build uses the Radeon 860M;
+  # pointed at http://localhost:11434) and for the `proofread` hotkey (Super+C,
+  # works in every app, e.g. Evolution). The Vulkan build uses the Radeon 860M;
   # ROCm doesn't properly support its chip (gfx1152). Check that the GPU was
   # picked up with: journalctl -u ollama | grep -iE 'vulkan|igpu'
   services.ollama = {
@@ -211,6 +258,26 @@ in
     };
   };
 
+  # Virtual keyboard at kernel level (uinput), so simulated keys look exactly
+  # like the real keyboard to every app. Used by `proofread` to press Ctrl+V.
+  # Only members of the ydotool group (see users above) can use it.
+  programs.ydotool.enable = true;
+
+  # LanguageTool: rule-based grammar and spell checking, very good for German.
+  # Runs at http://localhost:8081 (only reachable from this machine) and is
+  # used by `languagetool-check` (Super+Alt+C), LibreOffice (set in home.nix)
+  # and the Zen and Thunderbird add-ons (policies above). Starts at boot;
+  # stop it until the next boot with `sudo systemctl stop languagetool`.
+  services.languagetool = {
+    enable = true;
+    # The browser add-ons call it from their own moz-extension:// origin.
+    allowOrigin = "*";
+    # Without a cap, Java may grow up to a quarter of the RAM (seen: 1.7 GB
+    # and rising). With 768 MB the service stays at about 1 GB in total and
+    # checks just as fast; 512 MB made it several times slower.
+    jvmOptions = [ "-Xmx768m" ];
+  };
+
   # File-chooser dialogs. Umbriel's own portal handles screen sharing on
   # Umbriel; on Mango it's xdg-desktop-portal-wlr (added by programs.mango).
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
@@ -222,6 +289,8 @@ in
   environment.systemPackages = with pkgs; [
     rebuild # sudo nixos-rebuild switch for this repo
     update # nix flake update, then rebuild
+    proofread # grammar check of the selected text (Super+C)
+    languagetool-check # LanguageTool's findings for the selected text (Super+Alt+C)
     # Apps
     # Both browsers: middle-click on a page for Windows-style autoscroll
     # (move the mouse to scroll, click again to stop).
@@ -232,6 +301,16 @@ in
         defaultPref("general.autoScroll", true);
         defaultPref("intl.regional_prefs.use_os_locales", true);
       '';
+      # Not extraPolicies: the Zen flake hands those to the inner package, and
+      # the outer wrapper then replaces its policies.json with an empty one.
+      extraPoliciesFiles = [
+        (pkgs.writeText "zen-languagetool-policies.json" (
+          builtins.toJSON {
+            policies = languagetoolAddon "languagetool-webextension@languagetool.org"
+              "https://addons.mozilla.org/firefox/downloads/latest/languagetool/latest.xpi";
+          }
+        ))
+      ];
     }) # binary: zen-beta
     (chromium.override {
       commandLineArgs = "--enable-blink-features=MiddleClickAutoscroll";
@@ -263,6 +342,8 @@ in
     nextcloud-client
     (thunderbird.override {
       extraPrefs = ''defaultPref("intl.regional_prefs.use_os_locales", true);'';
+      extraPolicies = languagetoolAddon "languagetool-mailextension@languagetool.org"
+        "https://addons.thunderbird.net/thunderbird/downloads/latest/grammar-and-spell-checker/latest.xpi";
     })
     libreoffice
     claude-code
@@ -276,4 +357,8 @@ in
 
   programs.nix-ld.enable = true;
   programs.direnv.enable = true;
+  programs.evolution = {
+    enable = true;
+    plugins = [ pkgs.evolution-ews ];
+};
 }

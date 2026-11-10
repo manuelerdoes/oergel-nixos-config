@@ -306,6 +306,7 @@ in
     python3
     htop
     evince
+    keepassxc
 
     # Work
     teams-for-linux

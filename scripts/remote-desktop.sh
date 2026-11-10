@@ -36,12 +36,14 @@ listening() { [ -n "$(ss -Hltn "sport = :$PORT" 2>/dev/null)" ]; }
 valid_size() { [[ "$1" =~ ^[0-9]{3,5}x[0-9]{3,5}$ ]] || die "the size must look like 1920x1080."; }
 
 # The Wayland display of the running remote desktop (e.g. wayland-1), read
-# from the environment of a program inside it (Noctalia, wayvnc).
+# from the environment of its wayvnc. Not from Mango itself: it may still
+# carry the office session's WAYLAND_DISPLAY from systemd.
 session_display() {
   local cg pid d
   cg="$(systemctl --user show -p ControlGroup --value "$UNIT")"
   [ -n "$cg" ] || return 1
   for pid in $(cat "/sys/fs/cgroup$cg/cgroup.procs" 2>/dev/null); do
+    [ "$(cat "/proc/$pid/comm" 2>/dev/null)" = wayvnc ] || continue
     d="$({ tr '\0' '\n' <"/proc/$pid/environ"; } 2>/dev/null | sed -n 's/^WAYLAND_DISPLAY=//p' || true)"
     if [ -n "$d" ]; then
       echo "$d"
@@ -123,7 +125,7 @@ EOF
     --description="Remote desktop (headless Mango)" \
     --setenv=WLR_BACKENDS=headless \
     --setenv=WLR_LIBINPUT_NO_DEVICES=1 \
-    bash -lc "unset LIBGL_ALWAYS_SOFTWARE; exec mango -c '$config'"
+    bash -lc "unset LIBGL_ALWAYS_SOFTWARE WAYLAND_DISPLAY DISPLAY; exec mango -c '$config'"
 
   echo "Starting a $size desktop..."
   for _ in $(seq 1 30); do

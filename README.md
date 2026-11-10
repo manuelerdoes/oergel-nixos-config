@@ -231,9 +231,18 @@ Both are optional. `setup.sh` asks about them and writes the answers to
 Everything else is in `writing-tools.nix`.
 
 - **`Super+C`, proofreading with the local AI** (Ollama, `gemma3:12b`): select text in any app and
-  press it. After a few seconds the selection is replaced with the corrected text (`Ctrl+Z` undoes it).
-  It keeps the language, never translates, and writes Swiss German with "ss", never "ß".
-  The first use after a while takes longer while the model loads.
+  press it. A window opens and the AI starts correcting spelling, grammar and punctuation right away.
+  - **Left, a chat:** watch the answer appear, then give instructions ("more formal", "why did you
+    change that?") or use the quick buttons (*More formal*, *Shorter*, *To English* ...).
+  - **Right, the changes** compared with your original: *Accept* or *Keep original* for each one. The
+    result below updates and stays editable.
+  - **Replace selection** (`Ctrl+Enter`) puts the result where you selected the text; **Copy** puts it
+    in the clipboard. The model can be switched at the top right.
+
+  It keeps the language unless you ask otherwise, and writes Swiss German with "ss", never "ß".
+  The first use after a while takes longer (about 20 s) while the model loads.
+- **`Super+Ctrl+C`, the same without a window:** the selection is replaced with the corrected text
+  after a few seconds (`Ctrl+Z` undoes it).
 - **`Super+Alt+C`, LanguageTool:** a window lists the problems in the selected text. For each one,
   pick a suggestion (the first is preselected) or *Keep as is*; the result below updates, and you can
   still edit it. *Copy and close* (`Ctrl+Enter`) puts it in the clipboard. Each paragraph is checked in
@@ -513,7 +522,7 @@ Extras in both: `Mod+Shift+J/K` swap windows, `Mod+arrows` directional focus,
 (scroller/scrolling), `Mod+Ctrl+Left/Right` stack into neighbour column,
 `Mod+Y` dwindle, `Mod+O` overview, `Mod+§` scratchpad (`Mod+Shift+§` sends a
 window there), `Mod+S` control center, `Mod+V` clipboard, `Mod+Shift+S`
-screenshot, `Mod+Escape` Noctalia power menu, `Mod+C` proofread and `Mod+Alt+C`
-LanguageTool (see [Writing tools](#writing-tools)).
+screenshot, `Mod+Escape` Noctalia power menu, `Mod+C` proofread (`Mod+Ctrl+C` without a
+window) and `Mod+Alt+C` LanguageTool (see [Writing tools](#writing-tools)).
 Umbriel only: `Mod+Shift+W` tabs, `Mod+F1` cheatsheet.
 Mango only: `Mod+Ctrl+R` reload config.

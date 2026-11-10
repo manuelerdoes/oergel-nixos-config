@@ -1,7 +1,8 @@
 # Writing tools, both optional and off unless a machine turns them on.
 # setup.sh asks about them and writes the answers to hosts/<name>/default.nix:
 #
-#   features.ollama.enable = true;        # local AI proofreading, Super+C
+#   features.ollama.enable = true;        # local AI proofreading, Super+C (window)
+#                                         # and Super+Ctrl+C (instant)
 #   features.languagetool.enable = true;  # LanguageTool, Super+Alt+C
 #
 # The hotkeys are in mango/settings.conf and umbriel/config.toml for every
@@ -16,12 +17,50 @@
 let
   cfg = config.features;
 
-  # Select text, press Super+C: the local Ollama corrects it and pastes it over
-  # the selection (scripts/proofread.sh). Pasting uses ydotool, not wtype:
-  # GTK3 apps such as Evolution ignore wtype's Ctrl+V because of its private
-  # keymap.
-  proofread = pkgs.writeShellApplication {
-    name = "proofread";
+  # A small GTK4/libadwaita app from one Python script in scripts/.
+  gtkApp =
+    name: script: tools:
+    pkgs.stdenv.mkDerivation {
+      inherit name;
+      dontUnpack = true;
+      nativeBuildInputs = with pkgs; [
+        wrapGAppsHook4
+        gobject-introspection
+      ];
+      buildInputs = with pkgs; [
+        gtk4
+        libadwaita
+      ];
+      installPhase = ''
+        mkdir -p $out/bin
+        { echo "#!${pkgs.python3.withPackages (ps: [ ps.pygobject3 ])}/bin/python3 -I"
+          tail -n +2 ${script}
+        } > $out/bin/${name}
+        chmod +x $out/bin/${name}
+      '';
+      preFixup = ''
+        gappsWrapperArgs+=(--prefix PATH : ${lib.makeBinPath tools})
+      '';
+    };
+
+  # Select text, press Super+C: a window with a chat on the left, where the
+  # local AI proofreads the text and takes further instructions, and the
+  # changes on the right, to accept or keep one by one (scripts/proofread.py).
+  # "Replace selection" pastes the result with ydotool, not wtype: GTK3 apps
+  # such as Evolution ignore wtype's Ctrl+V because of its private keymap.
+  proofread = gtkApp "proofread" ./scripts/proofread.py (
+    with pkgs;
+    [
+      wl-clipboard
+      libnotify
+      ydotool
+    ]
+  );
+
+  # Super+Ctrl+C: the same without a window. Corrects the selected text and
+  # pastes it over the selection right away (scripts/proofread-quick.sh).
+  proofread-quick = pkgs.writeShellApplication {
+    name = "proofread-quick";
     runtimeInputs = with pkgs; [
       wl-clipboard
       ydotool
@@ -29,39 +68,19 @@ let
       curl
       libnotify
     ];
-    text = builtins.readFile ./scripts/proofread.sh;
+    text = builtins.readFile ./scripts/proofread-quick.sh;
   };
 
   # Select text, press Super+Alt+C: a window lists what LanguageTool finds,
   # lets you accept a suggestion or keep the text for each problem, and
-  # copies the result (scripts/languagetool-check.py, GTK4 + libadwaita).
-  languagetool-check = pkgs.stdenv.mkDerivation {
-    name = "languagetool-check";
-    dontUnpack = true;
-    nativeBuildInputs = with pkgs; [
-      wrapGAppsHook4
-      gobject-introspection
-    ];
-    buildInputs = with pkgs; [
-      gtk4
-      libadwaita
-    ];
-    installPhase = ''
-      mkdir -p $out/bin
-      { echo "#!${pkgs.python3.withPackages (ps: [ ps.pygobject3 ])}/bin/python3 -I"
-        tail -n +2 ${./scripts/languagetool-check.py}
-      } > $out/bin/languagetool-check
-      chmod +x $out/bin/languagetool-check
-    '';
-    preFixup = ''
-      gappsWrapperArgs+=(--prefix PATH : ${
-        lib.makeBinPath [
-          pkgs.wl-clipboard
-          pkgs.libnotify
-        ]
-      })
-    '';
-  };
+  # copies the result (scripts/languagetool-check.py).
+  languagetool-check = gtkApp "languagetool-check" ./scripts/languagetool-check.py (
+    with pkgs;
+    [
+      wl-clipboard
+      libnotify
+    ]
+  );
 
   # LanguageTool's cloud services. The browser add-ons send usage statistics
   # there, and text for features like synonyms, rephrasing and translation.
@@ -85,7 +104,8 @@ in
   options.features = {
     ollama.enable = lib.mkEnableOption ''
       Ollama with the Gemma 3 models (local AI, also the backend for ThunderAI
-      in Thunderbird) and the `proofread` hotkey (Super+C). Downloads about
+      in Thunderbird), the `proofread` window (Super+C) and `proofread-quick`
+      (Super+Ctrl+C). Downloads about
       11 GB of models and wants 16 GB of RAM or more'';
     languagetool.enable = lib.mkEnableOption ''
       the LanguageTool server (about 1 GB of RAM), the `languagetool-check`
@@ -124,7 +144,10 @@ in
       programs.ydotool.enable = true;
       users.users.${username}.extraGroups = [ "ydotool" ];
 
-      environment.systemPackages = [ proofread ];
+      environment.systemPackages = [
+        proofread
+        proofread-quick
+      ];
     })
 
     # ---------------------------------------------------------- LanguageTool

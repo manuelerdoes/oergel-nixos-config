@@ -392,9 +392,10 @@ else
   languagetool_default=y
 fi
 
-info "Local AI proofreading: select text anywhere and press Super+C. A local model (Ollama, Gemma 3)"
-info "fixes spelling, grammar and punctuation and pastes it back. Ollama is also the backend for"
-info "AI add-ons like ThunderAI in Thunderbird. It downloads about 11 GB of models after the build."
+info "Local AI proofreading: select text anywhere and press Super+C. A window opens where a local"
+info "model (Ollama, Gemma 3) corrects it; you accept or keep each change, or chat with it for more"
+info "(more formal, shorter, translate). Super+Ctrl+C fixes and pastes right away, without a window."
+info "Ollama is also the backend for AI add-ons like ThunderAI. It downloads about 11 GB of models."
 if [ "${ram_gb:-0}" -lt 15 ]; then
   warn "This machine has ${ram_gb} GB of RAM. The 12B model needs about 10 GB of it while it works."
 fi
@@ -638,7 +639,7 @@ if yes_no "Build and switch to the new configuration now?" y; then
   fi
   if [ "$ollama" = yes ]; then
     info "Ollama: the models download in the background now (systemctl status ollama-model-loader)."
-    info "Super+C works once they're done."
+    info "Super+C and Super+Ctrl+C work once they're done."
   fi
   if [ "$languagetool" = yes ]; then
     info "LanguageTool: in the add-on settings in Zen and Thunderbird, set the German variant to"

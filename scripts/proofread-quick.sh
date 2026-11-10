@@ -1,8 +1,9 @@
-# proofread: fixes spelling, grammar and punctuation of the selected text with
-# the local Ollama, then pastes the result over the selection.
+# proofread-quick: fixes spelling, grammar and punctuation of the selected
+# text with the local Ollama, then pastes the result over the selection. No
+# window; for the window with chat and change review, see proofread.py.
 #
-#   proofread               select text, press the hotkey (Super+C), done
-#   proofread --clipboard   only put the result in the clipboard (no auto-paste)
+#   proofread-quick               select text, press the hotkey (Super+Ctrl+C)
+#   proofread-quick --clipboard   only put the result in the clipboard
 #
 # PROOFREAD_MODEL picks another Ollama model (default gemma3:12b).
 # Undo a correction with Ctrl+Z in the app.

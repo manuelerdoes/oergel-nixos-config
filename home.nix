@@ -21,6 +21,7 @@ in
   # out-of-store link you can edit the repo file and the compositor reloads it
   # as soon as you save, with no rebuild.
   xdg.configFile."umbriel/config.toml".source = link "umbriel/config.toml";
+  xdg.configFile."umbriel/lid.sh".source = link "umbriel/lid.sh";
   xdg.configFile."mango/config.conf".source = link "mango/config.conf";
   xdg.configFile."mango/settings.conf".source = link "mango/settings.conf";
 

@@ -11,7 +11,8 @@
 # nm-applet: shows the VPN login window and remembers it (NetworkManager secret agent)
 # wayvnc: remote desktop, only reachable through an SSH tunnel (127.0.0.1)
 # vmware-user: VMware copy-paste (VM only; on the notebook it just fails silently)
-autostart = ["noctalia", "nm-applet --indicator", "wayvnc 127.0.0.1 5900", "vmware-user-suid-wrapper"]
+# lid.sh: turns the notebook panel off if the session starts with the lid closed
+autostart = ["noctalia", "nm-applet --indicator", "wayvnc 127.0.0.1 5900", "vmware-user-suid-wrapper", "/home/merdoes/.config/umbriel/lid.sh"]
 # "Super" (Windows key). If the VM host captures the Windows key, switch to "Alt"
 # for testing.
 mod_key = "Super"
@@ -30,6 +31,13 @@ show_cheatsheet = true
 #
 # [output.eDP-1]          # notebook panel
 # scale = 1.25
+
+# ==============================================================================
+# Lid: with an external monitor connected, closing the lid turns the notebook
+# panel off; opening it turns it back on. lid.sh is linked here by home.nix.
+[events]
+lid_close = "/home/merdoes/.config/umbriel/lid.sh"
+lid_open = "/home/merdoes/.config/umbriel/lid.sh"
 
 # ==============================================================================
 # Appearance (values from the Noctalia docs for Umbriel)
@@ -84,19 +92,19 @@ default_extent_fraction = 0.5
 [keybinds]
 
 # --- Launchers (dwm: dmenu, termcmd, browsercmd, explorercmd) ----------------
-"Mod+P" = { action = "spawn:noctalia msg panel-toggle launcher", repeat = false }
-"Mod" = "spawn:noctalia msg panel-toggle launcher" # tap Super alone
-"Mod+Shift+Return" = { action = "spawn:kitty", repeat = false }
-"Mod+W" = { action = "spawn:zen-beta", repeat = false }
-"Mod+N" = { action = "spawn:nautilus", repeat = false }
+"Mod+P" = { action = "spawn noctalia msg panel-toggle launcher", repeat = false }
+"Mod" = "spawn noctalia msg panel-toggle launcher" # tap Super alone
+"Mod+Shift+Return" = { action = "spawn kitty", repeat = false }
+"Mod+W" = { action = "spawn zen-beta", repeat = false }
+"Mod+N" = { action = "spawn nautilus", repeat = false }
 
 # --- Shell (Noctalia) ---------------------------------------------------------
-"Mod+B" = "spawn:noctalia msg bar-toggle" # dwm: togglebar
-"Mod+S" = "spawn:noctalia msg panel-toggle control-center"
-"Mod+V" = "spawn:noctalia msg panel-toggle clipboard"
-"Mod+Shift+S" = "spawn:noctalia msg screenshot-region"
-"Mod+Escape" = "spawn:noctalia msg panel-toggle session" # lock / logout / reboot
-"Mod+Shift+L" = "spawn:noctalia msg session lock"
+"Mod+B" = "spawn noctalia msg bar-toggle" # dwm: togglebar
+"Mod+S" = "spawn noctalia msg panel-toggle control-center"
+"Mod+V" = "spawn noctalia msg panel-toggle clipboard"
+"Mod+Shift+S" = "spawn noctalia msg screenshot-region"
+"Mod+Escape" = "spawn noctalia msg panel-toggle session" # lock / logout / reboot
+"Mod+Shift+L" = "spawn noctalia msg session lock"
 
 # --- Focus (dwm: focusstack) --------------------------------------------------
 "Mod+J" = "window-focus-next"
@@ -118,17 +126,17 @@ default_extent_fraction = 0.5
 "Mod+I" = "layout-master-count-increase"
 "Mod+D" = "layout-master-count-decrease"
 # In master: resizes the master area. In scrolling: resizes the column.
-"Mod+H" = "window-modify-primary-extent:-0.05"
-"Mod+L" = "window-modify-primary-extent:0.05"
+"Mod+H" = "window-modify-primary-extent -0.05"
+"Mod+L" = "window-modify-primary-extent 0.05"
 # Close to zoom: swaps a stack window with the master to its left.
 "Mod+Return" = { action = "window-swap-left", repeat = false }
 
 # --- Layouts (dwm: tile / floating / monocle) ---------------------------------
-"Mod+T" = { action = "workspace-set-layout:master", repeat = false }
-"Mod+F" = { action = "workspace-set-layout:floating", repeat = false }
-"Mod+M" = { action = "workspace-set-layout:scrolling", repeat = false }
-"Mod+Y" = { action = "workspace-set-layout:dwindle", repeat = false }
-"Mod+Space" = { action = "workspace-set-layout:toggle:master,scrolling", repeat = false }
+"Mod+T" = { action = "workspace-set-layout master", repeat = false }
+"Mod+F" = { action = "workspace-set-layout stacking", repeat = false }
+"Mod+M" = { action = "workspace-set-layout scrolling", repeat = false }
+"Mod+Y" = { action = "workspace-set-layout dwindle", repeat = false }
+"Mod+Space" = { action = "workspace-set-layout toggle master scrolling", repeat = false }
 "Mod+Shift+Space" = { action = "window-toggle-floating", repeat = false }
 "Mod+Shift+F" = { action = "window-toggle-fullscreen", repeat = false }
 "Mod+Ctrl+F" = { action = "window-toggle-maximize", repeat = false }
@@ -153,25 +161,25 @@ default_extent_fraction = 0.5
 "Mod+WheelUp" = { action = "workspace-previous", cooldown_ms = 150 }
 "Mod+WheelDown" = { action = "workspace-next", cooldown_ms = 150 }
 
-"Mod+1" = "workspace-switch:1"
-"Mod+2" = "workspace-switch:2"
-"Mod+3" = "workspace-switch:3"
-"Mod+4" = "workspace-switch:4"
-"Mod+5" = "workspace-switch:5"
-"Mod+6" = "workspace-switch:6"
-"Mod+7" = "workspace-switch:7"
-"Mod+8" = "workspace-switch:8"
-"Mod+9" = "workspace-switch:9"
+"Mod+1" = "workspace-switch 1"
+"Mod+2" = "workspace-switch 2"
+"Mod+3" = "workspace-switch 3"
+"Mod+4" = "workspace-switch 4"
+"Mod+5" = "workspace-switch 5"
+"Mod+6" = "workspace-switch 6"
+"Mod+7" = "workspace-switch 7"
+"Mod+8" = "workspace-switch 8"
+"Mod+9" = "workspace-switch 9"
 # dwm's tag does not follow the window, so these are the silent variants.
-"Mod+Shift+1" = "window-move-to-workspace-silent:1"
-"Mod+Shift+2" = "window-move-to-workspace-silent:2"
-"Mod+Shift+3" = "window-move-to-workspace-silent:3"
-"Mod+Shift+4" = "window-move-to-workspace-silent:4"
-"Mod+Shift+5" = "window-move-to-workspace-silent:5"
-"Mod+Shift+6" = "window-move-to-workspace-silent:6"
-"Mod+Shift+7" = "window-move-to-workspace-silent:7"
-"Mod+Shift+8" = "window-move-to-workspace-silent:8"
-"Mod+Shift+9" = "window-move-to-workspace-silent:9"
+"Mod+Shift+1" = "window-move-to-workspace-silent 1"
+"Mod+Shift+2" = "window-move-to-workspace-silent 2"
+"Mod+Shift+3" = "window-move-to-workspace-silent 3"
+"Mod+Shift+4" = "window-move-to-workspace-silent 4"
+"Mod+Shift+5" = "window-move-to-workspace-silent 5"
+"Mod+Shift+6" = "window-move-to-workspace-silent 6"
+"Mod+Shift+7" = "window-move-to-workspace-silent 7"
+"Mod+Shift+8" = "window-move-to-workspace-silent 8"
+"Mod+Shift+9" = "window-move-to-workspace-silent 9"
 
 # --- Monitors (dwm: focusmon / tagmon) ----------------------------------------
 "Mod+Comma" = "output-focus-previous"
@@ -184,14 +192,14 @@ default_extent_fraction = 0.5
 "Mod+Shift+section" = { action = "window-move-to-scratchpad", repeat = false }
 
 # --- Media keys, routed through Noctalia so its OSD shows ---------------------
-"XF86AudioRaiseVolume" = { action = "spawn:noctalia msg volume-up", allow_when_locked = true }
-"XF86AudioLowerVolume" = { action = "spawn:noctalia msg volume-down", allow_when_locked = true }
-"XF86AudioMute" = { action = "spawn:noctalia msg volume-mute", allow_when_locked = true, repeat = false }
-"XF86AudioPlay" = { action = "spawn:noctalia msg media toggle", allow_when_locked = true, repeat = false }
-"XF86AudioNext" = { action = "spawn:noctalia msg media next", allow_when_locked = true }
-"XF86AudioPrev" = { action = "spawn:noctalia msg media previous", allow_when_locked = true }
-"XF86MonBrightnessUp" = { action = "spawn:noctalia msg brightness-up", allow_when_locked = true }
-"XF86MonBrightnessDown" = { action = "spawn:noctalia msg brightness-down", allow_when_locked = true }
+"XF86AudioRaiseVolume" = { action = "spawn noctalia msg volume-up", allow_when_locked = true }
+"XF86AudioLowerVolume" = { action = "spawn noctalia msg volume-down", allow_when_locked = true }
+"XF86AudioMute" = { action = "spawn noctalia msg volume-mute", allow_when_locked = true, repeat = false }
+"XF86AudioPlay" = { action = "spawn noctalia msg media toggle", allow_when_locked = true, repeat = false }
+"XF86AudioNext" = { action = "spawn noctalia msg media next", allow_when_locked = true }
+"XF86AudioPrev" = { action = "spawn noctalia msg media previous", allow_when_locked = true }
+"XF86MonBrightnessUp" = { action = "spawn noctalia msg brightness-up", allow_when_locked = true }
+"XF86MonBrightnessDown" = { action = "spawn noctalia msg brightness-down", allow_when_locked = true }
 
 # ==============================================================================
 # Window rules

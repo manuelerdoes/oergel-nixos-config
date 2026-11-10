@@ -377,6 +377,44 @@ else
   work_summary="not set up"
 fi
 
+# --------------------------------------------------------------- Writing tools
+step "Writing tools (optional)"
+ram_gb="$(awk '/^MemTotal:/ { printf "%d", $2 / 1048576 + 0.5 }' /proc/meminfo)" # a "16 GB" machine shows about 15
+# Running setup.sh again keeps the earlier answers as suggestions.
+if [ -f "$host_dir/default.nix" ] && grep -q '^ *features\.' "$host_dir/default.nix"; then
+  ollama_default=n
+  languagetool_default=n
+  grep -q '^ *features\.ollama\.enable = true;' "$host_dir/default.nix" && ollama_default=y
+  grep -q '^ *features\.languagetool\.enable = true;' "$host_dir/default.nix" && languagetool_default=y
+else
+  ollama_default=y
+  { [ "$virt" != none ] || [ "${ram_gb:-0}" -lt 15 ]; } && ollama_default=n
+  languagetool_default=y
+fi
+
+info "Local AI proofreading: select text anywhere and press Super+C. A local model (Ollama, Gemma 3)"
+info "fixes spelling, grammar and punctuation and pastes it back. Ollama is also the backend for"
+info "AI add-ons like ThunderAI in Thunderbird. It downloads about 11 GB of models after the build."
+if [ "${ram_gb:-0}" -lt 15 ]; then
+  warn "This machine has ${ram_gb} GB of RAM. The 12B model needs about 10 GB of it while it works."
+fi
+[ "$virt" != none ] && warn "In a VM without GPU access, it runs on the CPU and is slow."
+ollama=no
+yes_no "Set up local AI proofreading (Ollama)?" "$ollama_default" && ollama=yes
+
+info "LanguageTool: a rule-based grammar checker, very good for German (Swiss spelling, no ß)."
+info "Super+Alt+C lists its findings for the selected text, and LibreOffice, Zen and Thunderbird"
+info "underline errors while you type. Runs locally as a service, with about 1 GB of RAM."
+languagetool=no
+yes_no "Set up LanguageTool?" "$languagetool_default" && languagetool=yes
+
+writing_summary=""
+[ "$ollama" = yes ] && writing_summary="Ollama proofreading (Super+C)"
+if [ "$languagetool" = yes ]; then
+  writing_summary="${writing_summary:+$writing_summary, }LanguageTool (Super+Alt+C)"
+fi
+writing_summary="${writing_summary:-none}"
+
 # ---------------------------------------------------------------- Disk space
 avail_gb="$(df -BG --output=avail /nix 2>/dev/null | tail -n 1 | tr -dc '0-9')"
 if [ -n "$avail_gb" ] && [ "$avail_gb" -lt 25 ]; then
@@ -453,6 +491,7 @@ cat <<EOF
   Keyboard:      $kb_layout${kb_variant:+ ($kb_variant)}
   VM:            $virt
   Work shares:   $work_summary
+  Writing tools: $writing_summary
 
   Files that will be written or changed:
     hosts/$host/default.nix
@@ -507,6 +546,12 @@ EOF
   [ -n "$dual_block" ] && printf '%s\n\n' "$dual_block"
   [ -n "$vm_block" ] && printf '%s\n\n' "$vm_block"
   cat <<EOF
+  # ------------------------------------------------------------- Writing tools
+  # Optional, see writing-tools.nix: Super+C proofreading with the local
+  # Ollama, and LanguageTool (Super+Alt+C, LibreOffice, Zen, Thunderbird).
+  features.ollama.enable = $([ "$ollama" = yes ] && echo true || echo false);
+  features.languagetool.enable = $([ "$languagetool" = yes ] && echo true || echo false);
+
   # Set once at install time; never change it, even when you update NixOS.
   system.stateVersion = "$state_version";
   home-manager.users.\${username}.home.stateVersion = "$state_version";
@@ -590,6 +635,14 @@ if yes_no "Build and switch to the new configuration now?" y; then
     info "   (--microsoft keeps Microsoft's keys, which Windows and the hardware need)"
     info "5. Reboot. 'bootctl status' should show: Secure Boot: enabled (user)"
     info "Skip the reboot question below, and do these steps first."
+  fi
+  if [ "$ollama" = yes ]; then
+    info "Ollama: the models download in the background now (systemctl status ollama-model-loader)."
+    info "Super+C works once they're done."
+  fi
+  if [ "$languagetool" = yes ]; then
+    info "LanguageTool: in the add-on settings in Zen and Thunderbird, set the German variant to"
+    info "'Switzerland' once. Otherwise they suggest 'ß'."
   fi
   if [ "$setup_work" = yes ]; then
     info "Work shares: run 'kinit <your Windows username>', then open ~/shares/<name>."

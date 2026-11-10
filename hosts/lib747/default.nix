@@ -30,6 +30,12 @@
   # clock right in both systems (Kerberos needs a correct clock).
   time.hardwareClockInLocalTime = true;
 
+  # ------------------------------------------------------------- Writing tools
+  # Optional, see writing-tools.nix: Super+C proofreading with the local
+  # Ollama, and LanguageTool (Super+Alt+C, LibreOffice, Zen, Thunderbird).
+  features.ollama.enable = true;
+  features.languagetool.enable = true;
+
   # Set once at install time; never change it, even when you update NixOS.
   system.stateVersion = "26.05";
   home-manager.users.${username}.home.stateVersion = "26.05";

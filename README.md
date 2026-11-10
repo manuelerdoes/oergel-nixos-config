@@ -126,6 +126,8 @@ and shows a summary before changing anything:
 | stateVersion | Taken from the installer's `/etc/nixos/configuration.nix` |
 | Keyboard | Written to `configuration.nix`, `umbriel/config.toml` and `mango/settings.conf` |
 | VM only | Guest tools for the hypervisor it detects, plus the graphics workarounds |
+| Work file shares | Optional, see [Work: file shares and VPN](#work-file-shares-and-vpn) |
+| Writing tools | Optional: proofreading with the local AI (Ollama) and LanguageTool, see [Writing tools](#writing-tools) |
 
 It also copies `hardware-configuration.nix`, checks the free disk space, runs
 `git add -A` (flakes ignore files git doesn't know), and then offers to build
@@ -221,6 +223,26 @@ fwupdmgr update          # install; BIOS updates are applied during the next reb
 - **If `get-updates` finds nothing for the BIOS,** check your model at https://fwupd.org/lvfs/devices.
   Lenovo also offers a bootable BIOS-update ISO for every model on its support site.
 - **In a VM** it finds nothing, because the virtual hardware has no firmware updates.
+
+## Writing tools
+
+Both are optional. `setup.sh` asks about them and writes the answers to
+`hosts/<name>/default.nix` (`features.ollama.enable`, `features.languagetool.enable`).
+Everything else is in `writing-tools.nix`.
+
+- **`Super+C`, proofreading with the local AI** (Ollama, `gemma3:12b`): select text in any app and
+  press it. After a few seconds the selection is replaced with the corrected text (`Ctrl+Z` undoes it).
+  It keeps the language, never translates, and writes Swiss German with "ss", never "ß".
+  The first use after a while takes longer while the model loads.
+- **`Super+Alt+C`, LanguageTool:** lists the problems in the selected text in a small window, with
+  suggestions. Nothing is changed. German is checked as Swiss German, English as British English.
+- **LanguageTool while you type:** LibreOffice, Zen and Thunderbird use the local server too (the
+  add-ons are installed automatically). In the add-on settings in Zen and Thunderbird, set the German
+  variant to *Switzerland* once, or they suggest "ß". In LibreOffice, set German documents to
+  *German (Switzerland)*.
+- **Services:** both run all the time. Ollama keeps a model in memory only while it's in use (up to
+  30 minutes after the last `Super+C`); LanguageTool uses about 1 GB of RAM.
+  `sudo systemctl stop languagetool` (or `ollama`) stops one until the next boot.
 
 ## Work: file shares and VPN
 
@@ -485,6 +507,7 @@ Extras in both: `Mod+Shift+J/K` swap windows, `Mod+arrows` directional focus,
 (scroller/scrolling), `Mod+Ctrl+Left/Right` stack into neighbour column,
 `Mod+Y` dwindle, `Mod+O` overview, `Mod+§` scratchpad (`Mod+Shift+§` sends a
 window there), `Mod+S` control center, `Mod+V` clipboard, `Mod+Shift+S`
-screenshot, `Mod+Escape` Noctalia power menu.
+screenshot, `Mod+Escape` Noctalia power menu, `Mod+C` proofread and `Mod+Alt+C`
+LanguageTool (see [Writing tools](#writing-tools)).
 Umbriel only: `Mod+Shift+W` tabs, `Mod+F1` cheatsheet.
 Mango only: `Mod+Ctrl+R` reload config.

@@ -523,7 +523,9 @@ set_value configuration.nix '^( *variant = ")[^"]*(";)' "$kb_variant"
 set_value umbriel/config.toml '^(layout = ")[^"]*(")' "$kb_layout"
 set_value umbriel/config.toml '^(variant = ")[^"]*(")' "$kb_variant"
 set_value mango/settings.conf '^(xkb_rules_layout=)[^[:space:]]*()' "$kb_layout"
-set_value mango/settings.conf '^(xkb_rules_variant=)[^[:space:]]*()' "$kb_variant"
+# Mango rejects an empty value, so without a variant the line is commented out.
+if [ -n "$kb_variant" ]; then mango_variant="xkb_rules_variant=$kb_variant"; else mango_variant="#xkb_rules_variant="; fi
+set_value mango/settings.conf '^()#?xkb_rules_variant=[^[:space:]]*()' "$mango_variant"
 info "flake.nix, configuration.nix and the compositor configs updated"
 
 # Private work settings. Plain data, read by work.nix.

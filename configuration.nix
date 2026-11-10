@@ -215,6 +215,45 @@ in
   # reached through an SSH tunnel (see README, "Remote desktop"). Port 5900
   # is not opened in the firewall.
 
+  # `remote-desktop attach` (scripts/remote-desktop.sh) takes over the office
+  # session from home, like RDP. While it's active, this service blocks the
+  # notebook's physical keyboards, mice, touchpads and touchscreen
+  # (scripts/input-block.py), so nobody at the desk can use the session.
+  # Holding Ctrl+Alt+Backspace for 3 s at the desk ends it. It is never started
+  # at boot (no wantedBy), ends itself after 12 hours, and whenever it stops,
+  # for any reason, the stop hook detaches: the session is locked and the
+  # screens come back on.
+  systemd.services.remote-input-block = {
+    description = "Block the physical input while remote-desktop is attached";
+    serviceConfig = {
+      ExecStart = "${pkgs.python3.withPackages (ps: [ ps.evdev ])}/bin/python3 -I ${./scripts/input-block.py}";
+      ExecStopPost = pkgs.writeShellScript "remote-input-block-stopped" ''
+        uid=$(${pkgs.coreutils}/bin/id -u ${username})
+        exec ${pkgs.util-linux}/bin/runuser -u ${username} -- ${pkgs.coreutils}/bin/env \
+          XDG_RUNTIME_DIR=/run/user/$uid \
+          DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus \
+          PATH=/etc/profiles/per-user/${username}/bin:/run/current-system/sw/bin \
+          remote-desktop _hook
+      '';
+      RuntimeMaxSec = "12h";
+      Restart = "no";
+    };
+  };
+  # Your user may start and stop only this unit, without a password (attach
+  # runs over SSH, where nothing could ask for one).
+  security.polkit.extraConfig = ''
+    polkit.addRule(function(action, subject) {
+      if (action.id == "org.freedesktop.systemd1.manage-units" &&
+          action.lookup("unit") == "remote-input-block.service" &&
+          subject.user == "${username}") {
+        var verb = action.lookup("verb");
+        if (verb == "start" || verb == "stop") {
+          return polkit.Result.YES;
+        }
+      }
+    });
+  '';
+
   # Plugged in, a closed lid doesn't suspend, so the notebook stays reachable
   # in the office. On battery it still suspends as usual.
   services.logind.settings.Login.HandleLidSwitchExternalPower = "ignore";

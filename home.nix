@@ -25,6 +25,7 @@ in
   xdg.configFile."umbriel/lid.sh".source = link "umbriel/lid.sh";
   xdg.configFile."mango/config.conf".source = link "mango/config.conf";
   xdg.configFile."mango/settings.conf".source = link "mango/settings.conf";
+  xdg.configFile."mango/lid.sh".source = link "mango/lid.sh";
 
   # Noctalia reads this file first; its settings window saves changes to
   # ~/.local/state/noctalia/settings.toml, which overrides it. Settings worth
@@ -36,9 +37,11 @@ in
     (pkgs.writeShellScriptBin "import-bookmarks" ''
       exec ${pkgs.python3}/bin/python3 ${./scripts/import-bookmarks.py} "$@"
     '')
-    # `remote-desktop start|resize|stop|status`: a separate desktop over VNC, for SSH.
+    # `remote-desktop attach|detach|start|stop|resize|status`: work on the
+    # notebook over VNC, from SSH. The input block it uses is in configuration.nix.
     (pkgs.writeShellScriptBin "remote-desktop" ''
-      WLR_RANDR=${pkgs.wlr-randr}/bin/wlr-randr exec ${pkgs.bash}/bin/bash ${./scripts/remote-desktop.sh} "$@"
+      export PATH=${lib.makeBinPath [ pkgs.wlr-randr pkgs.jq pkgs.util-linux pkgs.procps ]}:/etc/profiles/per-user/${username}/bin:/run/current-system/sw/bin:$PATH
+      exec ${pkgs.bash}/bin/bash ${./scripts/remote-desktop.sh} "$@"
     '')
   ];
 

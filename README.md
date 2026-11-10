@@ -328,7 +328,39 @@ home PC --(work VPN)--> notebook:22 (SSH) --tunnel--> wayvnc on 127.0.0.1:5900
    ```
 3. **In the VNC viewer, connect to `localhost:5900`.**
 
-### A separate desktop instead (recommended for working from home)
+### Taking over the office session, like RDP (recommended for working from home)
+
+`remote-desktop attach` works in your real office session, with all the windows that are open
+there. Leave the session logged in and locked when you go home. Over SSH:
+
+```powershell
+ssh -L 5901:localhost:5901 <user>@<notebook>
+```
+```sh
+remote-desktop attach 2560x1440       # the size of your home screen; optional scale: ... 2560x1440 1.25
+remote-desktop resize 1920x1080       # change the size while attached
+remote-desktop status
+remote-desktop detach                 # give the session back (locks it)
+```
+
+Connect the VNC viewer to `localhost:5901`; unlock the session there if it's locked. While
+attached, the notebook's screens are off (windows from both move to one virtual screen) and its
+keyboard, mouse, touchpad and touchscreen are blocked, so nobody at the desk sees or changes
+anything. A monitor that gets plugged in is turned off again.
+
+It ends by itself, always with the session locked and the screens back on in their old places:
+
+- **At the desk: hold Ctrl+Alt+Backspace for 3 seconds** (on any keyboard). Like logging in
+  locally over an RDP session.
+- 5 minutes without a VNC viewer (tunnel, VPN or home PC gone).
+- After 12 hours.
+- If the input block (`remote-input-block.service`), the watcher or Mango ends for any reason.
+
+Nothing of it survives a reboot. If nobody is logged in at the notebook (e.g. after a restart), use
+the separate desktop below. Logs: `journalctl --user -u remote-desktop-attach` and
+`journalctl -u remote-input-block`. Background: `remote-desktop-attach-plan.md`.
+
+### A separate desktop instead (fallback)
 
 Instead of sharing the office screen, `remote-desktop` starts a second, invisible desktop: Mango
 without a monitor, with Noctalia and your normal Mango settings (`mango/settings.conf`). Nobody has

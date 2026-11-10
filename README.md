@@ -234,12 +234,18 @@ Everything else is in `writing-tools.nix`.
   press it. After a few seconds the selection is replaced with the corrected text (`Ctrl+Z` undoes it).
   It keeps the language, never translates, and writes Swiss German with "ss", never "ß".
   The first use after a while takes longer while the model loads.
-- **`Super+Alt+C`, LanguageTool:** lists the problems in the selected text in a small window, with
-  suggestions. Nothing is changed. German is checked as Swiss German, English as British English.
+- **`Super+Alt+C`, LanguageTool:** a window lists the problems in the selected text. For each one,
+  pick a suggestion (the first is preselected) or *Keep as is*; the result below updates, and you can
+  still edit it. *Copy and close* (`Ctrl+Enter`) puts it in the clipboard. Each paragraph is checked in
+  its own language: German as Swiss German, English as British English.
 - **LanguageTool while you type:** LibreOffice, Zen and Thunderbird use the local server too (the
   add-ons are installed automatically). In the add-on settings in Zen and Thunderbird, set the German
   variant to *Switzerland* once, or they suggest "ß". In LibreOffice, set German documents to
   *German (Switzerland)*.
+- **Datenschutz:** everything is checked on this machine. The LanguageTool service may only talk to
+  `localhost`, and LanguageTool's cloud addresses are blocked in `/etc/hosts`, so the add-ons can't send
+  usage statistics or text there either (their synonyms, rephrasing and translation features don't
+  work for that reason). Ollama only goes online to download models.
 - **Services:** both run all the time. Ollama keeps a model in memory only while it's in use (up to
   30 minutes after the last `Super+C`); LanguageTool uses about 1 GB of RAM.
   `sudo systemctl stop languagetool` (or `ollama`) stops one until the next boot.

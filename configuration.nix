@@ -71,6 +71,7 @@ let
     "3rdparty".Extensions.${id} = {
       apiServerUrl = "http://localhost:8081/v2";
       disablePrivacyConfirmation = true; # texts stay on this machine
+      disableOpenInEditor = true; # that would upload the text to languagetool.org
     };
   };
 in
@@ -252,6 +253,18 @@ in
   # File-chooser dialogs. Umbriel's own portal handles screen sharing on
   # Umbriel; on Mango it's xdg-desktop-portal-wlr (added by programs.mango).
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+
+  # Screen sharing on Mango (Teams etc.): when the screen dims, click the
+  # monitor to share. Without this the portal's built-in picker list fails
+  # ("no output found") and sharing silently does nothing. Not a file in
+  # /etc/xdg: the portal never looks there, so this hands it --config.
+  xdg.portal.wlr = {
+    enable = true;
+    settings.screencast = {
+      chooser_type = "simple";
+      chooser_cmd = "${pkgs.slurp}/bin/slurp -f 'Monitor: %o' -or";
+    };
+  };
 
   # Run Chromium, VS Code and other Electron apps as native Wayland apps.
   environment.sessionVariables.NIXOS_OZONE_WL = "1";

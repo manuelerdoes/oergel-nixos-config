@@ -32,19 +32,54 @@ let
     text = builtins.readFile ./scripts/proofread.sh;
   };
 
-  # Select text, press Super+Alt+C: a window lists what LanguageTool finds
-  # (scripts/languagetool-check.sh). Nothing is changed.
-  languagetool-check = pkgs.writeShellApplication {
+  # Select text, press Super+Alt+C: a window lists what LanguageTool finds,
+  # lets you accept a suggestion or keep the text for each problem, and
+  # copies the result (scripts/languagetool-check.py, GTK4 + libadwaita).
+  languagetool-check = pkgs.stdenv.mkDerivation {
     name = "languagetool-check";
-    runtimeInputs = with pkgs; [
-      wl-clipboard
-      jq
-      curl
-      libnotify
-      zenity
+    dontUnpack = true;
+    nativeBuildInputs = with pkgs; [
+      wrapGAppsHook4
+      gobject-introspection
     ];
-    text = builtins.readFile ./scripts/languagetool-check.sh;
+    buildInputs = with pkgs; [
+      gtk4
+      libadwaita
+    ];
+    installPhase = ''
+      mkdir -p $out/bin
+      { echo "#!${pkgs.python3.withPackages (ps: [ ps.pygobject3 ])}/bin/python3 -I"
+        tail -n +2 ${./scripts/languagetool-check.py}
+      } > $out/bin/languagetool-check
+      chmod +x $out/bin/languagetool-check
+    '';
+    preFixup = ''
+      gappsWrapperArgs+=(--prefix PATH : ${
+        lib.makeBinPath [
+          pkgs.wl-clipboard
+          pkgs.libnotify
+        ]
+      })
+    '';
   };
+
+  # LanguageTool's cloud services. The browser add-ons send usage statistics
+  # there, and text for features like synonyms, rephrasing and translation.
+  # Grammar checking itself goes to the local server; blocking these names
+  # makes sure nothing else does. languagetool.org itself (the website, the
+  # add-on's config and version ping) stays reachable.
+  languagetoolCloud = [
+    "analytics.languagetoolplus.com"
+    "api.languagetoolplus.com"
+    "languagetoolplus.com"
+    "rewriting.languagetoolplus.com"
+    "api.languagetool.org"
+    "api-fallback.languagetool.org"
+    "synonyms.languagetool.org"
+    "prod-translator.languagetool.org"
+    "qb-grammar-en.languagetool.org"
+    "cerberus.languagetool.org"
+  ];
 in
 {
   options.features = {
@@ -105,6 +140,17 @@ in
         # and rising). With 768 MB the service stays at about 1 GB in total
         # and checks just as fast; 512 MB made it several times slower.
         jvmOptions = [ "-Xmx768m" ];
+      };
+      # Datenschutz: the server may talk to this machine only, so no text can
+      # leave through it, whatever it might try.
+      systemd.services.languagetool.serviceConfig = {
+        IPAddressDeny = "any";
+        IPAddressAllow = "localhost";
+      };
+      # ...and the add-ons can't reach LanguageTool's cloud (see above).
+      networking.hosts = {
+        "0.0.0.0" = languagetoolCloud;
+        "::" = languagetoolCloud;
       };
 
       environment.systemPackages = [ languagetool-check ];

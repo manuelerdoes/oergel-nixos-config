@@ -99,7 +99,7 @@ default_extent_fraction = 0.5
 "Mod+N" = { action = "spawn nautilus", repeat = false }
 # Grammar check: fixes the selected text with the local Ollama and pastes it back
 "Mod+C" = { action = "spawn proofread", repeat = false }
-# LanguageTool: lists problems in the selected text, changes nothing
+# LanguageTool: review the problems in the selected text, copy the result
 "Mod+Alt+C" = { action = "spawn languagetool-check", repeat = false }
 
 # --- Shell (Noctalia) ---------------------------------------------------------
@@ -220,7 +220,7 @@ default_floating_size_px = { width = 1020, height = 900 }
 [[window_rule]]
 match.title = "^LanguageTool"
 default_floating = true
-default_floating_size_px = { width = 720, height = 480 }
+default_floating_size_px = { width = 780, height = 760 }
 
 # Screen-share picker
 [[window_rule]]

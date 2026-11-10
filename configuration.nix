@@ -305,6 +305,7 @@ in
     wayvnc-screencopy # the same for Mango, see the top of this file
     python3
     htop
+    evince
 
     # Work
     teams-for-linux

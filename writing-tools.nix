@@ -79,6 +79,7 @@ let
     [
       wl-clipboard
       libnotify
+      ydotool
     ]
   );
 
@@ -114,6 +115,16 @@ in
   };
 
   config = lib.mkMerge [
+    # ------------------------------------------------------- both: pasting
+    (lib.mkIf (cfg.ollama.enable || cfg.languagetool.enable) {
+      # Virtual keyboard at kernel level (uinput), so simulated keys look
+      # exactly like the real keyboard to every app. "Replace selection" in
+      # both windows and `proofread-quick` use it to press Ctrl+V. Only
+      # members of the ydotool group can use it.
+      programs.ydotool.enable = true;
+      users.users.${username}.extraGroups = [ "ydotool" ];
+    })
+
     # ---------------------------------------------------------------- Ollama
     (lib.mkIf cfg.ollama.enable {
       # Local LLMs for the `proofread` hotkey and for AI add-ons like ThunderAI
@@ -137,12 +148,6 @@ in
           OLLAMA_IGPU_ENABLE = "1";
         };
       };
-
-      # Virtual keyboard at kernel level (uinput), so simulated keys look
-      # exactly like the real keyboard to every app. `proofread` uses it to
-      # press Ctrl+V. Only members of the ydotool group can use it.
-      programs.ydotool.enable = true;
-      users.users.${username}.extraGroups = [ "ydotool" ];
 
       environment.systemPackages = [
         proofread

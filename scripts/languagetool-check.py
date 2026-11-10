@@ -6,17 +6,22 @@ local LanguageTool server (localhost only, nothing leaves the machine), and a
 window lists every problem it finds. For each one, pick one of the
 suggestions or keep the text as it is; the first suggestion is preselected.
 The result below updates as you choose, and you can still edit it by hand.
-"Copy" puts it in the clipboard.
+"Replace selection" puts it where you selected the text (Ctrl+Enter), "Copy"
+puts it in the clipboard, and "Continue with AI" hands it over to the local
+AI's proofread window (if that's installed).
 
 German is checked as Swiss German (de-CH: "ss", never "ß"), English as
 British English. Change VARIANTS below for others (e.g. en-US).
 
     languagetool-check            check the selected text (or the clipboard)
-    languagetool-check --stdin    check text from stdin (for testing)
+    languagetool-check --stdin    check text from stdin and always show the
+                                  window (used by the proofread window)
 """
 
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -203,7 +208,7 @@ class ReviewWindow(Adw.ApplicationWindow):
 
         language = ", ".join(languages)
         count = len(problems)
-        what = "1 problem" if count == 1 else f"{count} problems"
+        what = {0: "No problems", 1: "1 problem"}.get(count, f"{count} problems")
         # Mango and Umbriel float windows whose title starts with "LanguageTool".
         self.set_title(f"LanguageTool: {what} ({language})")
         self.set_default_size(780, 760)
@@ -222,6 +227,9 @@ class ReviewWindow(Adw.ApplicationWindow):
         # Problems
         listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
         listbox.add_css_class("boxed-list")
+        nothing = Gtk.Label(label="No problems found.")
+        nothing.add_css_class("dim-label")
+        listbox.set_placeholder(self.margins(nothing, 12, 12, 24, 24))
         for i, p in enumerate(problems):
             listbox.append(self.problem_row(i, p))
         problems_scroll = Gtk.ScrolledWindow(vexpand=True, hscrollbar_policy=Gtk.PolicyType.NEVER)
@@ -253,16 +261,30 @@ class ReviewWindow(Adw.ApplicationWindow):
         result_hint.add_css_class("caption")
 
         # Buttons
+        buttons = Gtk.Box(spacing=8)
+        if shutil.which("proofread"):
+            to_ai = Gtk.Button(label="Continue with AI")
+            to_ai.add_css_class("flat")
+            to_ai.set_tooltip_text(
+                "Hand the result over to the local AI: it proofreads it, and you can chat with it"
+            )
+            to_ai.connect("clicked", lambda *_: self.hand_over("proofread"))
+            buttons.append(to_ai)
+        spacer = Gtk.Box(hexpand=True)
+        buttons.append(spacer)
         close = Gtk.Button(label="Close")
         close.connect("clicked", lambda *_: self.close())
         copy = Gtk.Button(label="Copy")
-        copy.connect("clicked", lambda *_: self.copy(close_after=False))
+        copy.connect("clicked", lambda *_: self.copy())
         copy_close = Gtk.Button(label="Copy and close")
         copy_close.add_css_class("suggested-action")
-        copy_close.set_tooltip_text("Ctrl+Enter")
-        copy_close.connect("clicked", lambda *_: self.copy(close_after=True))
-        buttons = Gtk.Box(spacing=8, halign=Gtk.Align.END)
-        for b in (close, copy, copy_close):
+        copy_close.set_tooltip_text("Puts the result in the clipboard and closes the window")
+        copy_close.connect("clicked", lambda *_: self.copy_and_close())
+        replace = Gtk.Button(label="Replace selection")
+        replace.add_css_class("suggested-action")
+        replace.set_tooltip_text("Puts the result where you selected the text (Ctrl+Enter)")
+        replace.connect("clicked", lambda *_: self.replace_selection())
+        for b in (close, copy, copy_close, replace):
             buttons.append(b)
 
         bottom = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -289,13 +311,13 @@ class ReviewWindow(Adw.ApplicationWindow):
         keys.add_shortcut(
             Gtk.Shortcut.new(
                 Gtk.ShortcutTrigger.parse_string("<Control>Return"),
-                Gtk.CallbackAction.new(lambda *_: self.copy(close_after=True) or True),
+                Gtk.CallbackAction.new(lambda *_: self.replace_selection() or True),
             )
         )
         self.add_controller(keys)
 
         self.rebuild()
-        copy_close.grab_focus()
+        replace.grab_focus()
 
     @staticmethod
     def margins(widget, start, end, top, bottom):
@@ -386,24 +408,67 @@ class ReviewWindow(Adw.ApplicationWindow):
         for start, end in changed:
             buf.apply_tag(self.changed_tag, buf.get_iter_at_offset(start), buf.get_iter_at_offset(end))
 
-    def copy(self, close_after):
+    def result_text(self):
         buf = self.result.get_buffer()
-        text = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), True)
+        return buf.get_text(buf.get_start_iter(), buf.get_end_iter(), True)
+
+    def copy_to_clipboard(self):
+        text = self.result_text()
         # wl-copy keeps serving the clipboard after this window is gone.
         try:
             subprocess.run(["wl-copy"], input=text, text=True, check=True, timeout=5)
         except (OSError, subprocess.SubprocessError):
             Gdk.Display.get_default().get_clipboard().set(text)
-        if close_after:
-            notify("Corrected text is in the clipboard", timeout=3000)
-            self.close()
-        else:
-            self.toasts.add_toast(Adw.Toast(title="Copied", timeout=2))
+
+    def copy(self):
+        self.copy_to_clipboard()
+        self.toasts.add_toast(Adw.Toast(title="Copied", timeout=2))
+
+    def copy_and_close(self):
+        self.copy_to_clipboard()
+        notify("The result is in the clipboard", timeout=3000)
+        self.close()
+
+    def replace_selection(self):
+        """Copy, close, and press Ctrl+V in the app that had the selection. The
+        text there is usually still selected, so it gets replaced."""
+        self.copy_to_clipboard()
+        env = dict(os.environ)
+        env.setdefault("YDOTOOL_SOCKET", "/run/ydotoold/socket")
+        # Runs on after this window is gone; the wait lets the focus go back.
+        # ydotool takes Linux key codes: 29 = left Ctrl, 47 = V.
+        subprocess.Popen(
+            [
+                "sh",
+                "-c",
+                "sleep 0.4; ydotool key 29:1 47:1 47:0 29:0 >/dev/null 2>&1 || "
+                "notify-send -a LanguageTool LanguageTool "
+                "'The result is in the clipboard; pasting failed, press Ctrl+V.'",
+            ],
+            env=env,
+            start_new_session=True,
+        )
+        self.close()
+
+    def hand_over(self, command):
+        """Open the other tool's window with the current result. The text in
+        your app stays selected, so "Replace selection" works there too."""
+        try:
+            child = subprocess.Popen(
+                [command, "--stdin"], stdin=subprocess.PIPE, text=True, start_new_session=True
+            )
+            child.stdin.write(self.result_text())
+            child.stdin.close()
+        except OSError as e:
+            self.toasts.add_toast(Adw.Toast(title=f"Couldn't start {command}: {e}"))
+            return
+        self.close()
 
 
 # -------------------------------------------------------------------- main
 def main():
-    text = sys.stdin.read() if "--stdin" in sys.argv[1:] else selected_text()
+    handed_over = "--stdin" in sys.argv[1:]
+    text = sys.stdin.read() if handed_over else selected_text()
     if not text.strip():
         notify("No text selected", timeout=3000)
         return 0
@@ -415,10 +480,11 @@ def main():
         notify("Server not reachable (systemctl status languagetool)", replace=nid, urgent=True)
         return 1
 
-    if not problems:
+    if not problems and not handed_over:
         notify(f"No problems found ({', '.join(languages)})", replace=nid, timeout=3000)
         return 0
-    # Close the "Checking" notification; the window takes over.
+    # Close the "Checking" notification; the window takes over. Text handed
+    # over from another window always gets a window, so it isn't lost.
     notify(f"{len(problems)} problem(s) found", replace=nid, timeout=1)
 
     app = Adw.Application(

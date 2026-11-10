@@ -236,8 +236,8 @@ Everything else is in `writing-tools.nix`.
     change that?") or use the quick buttons (*More formal*, *Shorter*, *To English* ...).
   - **Right, the changes** compared with your original: *Accept* or *Keep original* for each one. The
     result below updates and stays editable.
-  - **Replace selection** (`Ctrl+Enter`) puts the result where you selected the text; **Copy** puts it
-    in the clipboard. The model can be switched at the top right.
+  - **Replace selection** (`Ctrl+Enter`) puts the result where you selected the text; **Copy** and
+    **Copy and close** put it in the clipboard. The model can be switched at the top right.
 
   It keeps the language unless you ask otherwise, and writes Swiss German with "ss", never "ß".
   The first use after a while takes longer (about 20 s) while the model loads.
@@ -245,8 +245,12 @@ Everything else is in `writing-tools.nix`.
   after a few seconds (`Ctrl+Z` undoes it).
 - **`Super+Alt+C`, LanguageTool:** a window lists the problems in the selected text. For each one,
   pick a suggestion (the first is preselected) or *Keep as is*; the result below updates, and you can
-  still edit it. *Copy and close* (`Ctrl+Enter`) puts it in the clipboard. Each paragraph is checked in
-  its own language: German as Swiss German, English as British English.
+  still edit it. **Replace selection** (`Ctrl+Enter`) puts it where you selected the text; **Copy** and
+  **Copy and close** put it in the clipboard. Each paragraph is checked in its own language: German as Swiss German, English as
+  British English.
+- **Handing over between the two:** *Continue with AI* in the LanguageTool window and *Check with
+  LanguageTool* in the AI window pass the current result to the other one. The text stays selected in
+  your app, so *Replace selection* works from either. The buttons appear only where both are set up.
 - **LanguageTool while you type:** LibreOffice, Zen and Thunderbird use the local server too (the
   add-ons are installed automatically). In the add-on settings in Zen and Thunderbird, set the German
   variant to *Switzerland* once, or they suggest "ß". In LibreOffice, set German documents to

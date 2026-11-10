@@ -11,19 +11,21 @@ punctuation. Nothing leaves this machine.
   - Right, the changes compared with your original text: Accept or Keep each
     one. The result below updates, and you can still edit it by hand.
   - "Replace selection" puts the result where you selected the text (Ctrl+Enter),
-    "Copy" puts it in the clipboard.
+    "Copy" puts it in the clipboard. "Check with LanguageTool" hands the
+    result over to the LanguageTool window (if that's installed).
 
 German text is written in Swiss spelling (ss, never ß) unless the original
 already used ß. PROOFREAD_MODEL picks the default model (gemma3:12b).
 
     proofread            work on the selected text (or the clipboard)
-    proofread --stdin    work on text from stdin (for testing)
+    proofread --stdin    work on text from stdin (used by the LanguageTool window)
 """
 
 import difflib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -359,12 +361,23 @@ class ProofreadWindow(Adw.ApplicationWindow):
         close.connect("clicked", lambda *_: self.close())
         copy = Gtk.Button(label="Copy")
         copy.connect("clicked", lambda *_: self.copy())
+        copy_close = Gtk.Button(label="Copy and close")
+        copy_close.add_css_class("suggested-action")
+        copy_close.set_tooltip_text("Puts the result in the clipboard and closes the window")
+        copy_close.connect("clicked", lambda *_: self.copy_and_close())
         replace = Gtk.Button(label="Replace selection")
         replace.add_css_class("suggested-action")
         replace.set_tooltip_text("Puts the result where you selected the text (Ctrl+Enter)")
         replace.connect("clicked", lambda *_: self.replace_selection())
-        buttons = Gtk.Box(spacing=8, halign=Gtk.Align.END)
-        for b in (close, copy, replace):
+        buttons = Gtk.Box(spacing=8)
+        if shutil.which("languagetool-check"):
+            to_lt = Gtk.Button(label="Check with LanguageTool")
+            to_lt.add_css_class("flat")
+            to_lt.set_tooltip_text("Hand the result over to LanguageTool for a rule-based second check")
+            to_lt.connect("clicked", lambda *_: self.hand_over("languagetool-check"))
+            buttons.append(to_lt)
+        buttons.append(Gtk.Box(hexpand=True))
+        for b in (close, copy, copy_close, replace):
             buttons.append(b)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -610,6 +623,27 @@ class ProofreadWindow(Adw.ApplicationWindow):
     def copy(self):
         self.copy_to_clipboard()
         self.toasts.add_toast(Adw.Toast(title="Copied", timeout=2))
+
+    def hand_over(self, command):
+        """Open the other tool's window with the current result. The text in
+        your app stays selected, so "Replace selection" works there too."""
+        self.stop()
+        try:
+            child = subprocess.Popen(
+                [command, "--stdin"], stdin=subprocess.PIPE, text=True, start_new_session=True
+            )
+            child.stdin.write(self.result_text())
+            child.stdin.close()
+        except OSError as e:
+            self.toasts.add_toast(Adw.Toast(title=f"Couldn't start {command}: {e}"))
+            return
+        self.close()
+
+    def copy_and_close(self):
+        self.stop()
+        self.copy_to_clipboard()
+        notify("The result is in the clipboard", timeout=3000)
+        self.close()
 
     def replace_selection(self):
         """Copy, close, and press Ctrl+V in the app that had the selection. The

@@ -43,6 +43,11 @@ in
       export PATH=${lib.makeBinPath [ pkgs.wlr-randr pkgs.jq pkgs.util-linux pkgs.procps ]}:/etc/profiles/per-user/${username}/bin:/run/current-system/sw/bin:$PATH
       exec ${pkgs.bash}/bin/bash ${./scripts/remote-desktop.sh} "$@"
     '')
+    # `timetogo START [LUNCH_MINUTES]`: when an 8.2-hour workday started at
+    # START ends (lunch break defaults to 30 minutes).
+    (pkgs.writeShellScriptBin "ttg" ''
+      exec ${pkgs.bash}/bin/bash ${./scripts/timetogo.sh} "$@"
+    '')
   ];
 
   # Daily wallpaper: Bing's "image of the day" (the same kind of nature photos

@@ -37,6 +37,7 @@ OUTPUT=HEADLESS-1 # the screen the headless backend creates by itself
 # attach: the office session
 VOUT=REMOTE-1                         # the virtual screen added to the office session
 ATTACH_UNIT=remote-desktop-attach     # user unit: wayvnc + the watcher
+NOCTALIA_UNIT=noctalia-office         # user unit: Noctalia, if it had to be restarted
 BLOCK_UNIT=remote-input-block.service # system unit: blocks physical input (configuration.nix)
 STATE="$DIR/attached"                 # exists while attached; lid.sh checks it
 OUTPUTS_FILE="$DIR/attached-outputs"  # the real screens to turn back on: "name x y" per line
@@ -201,7 +202,7 @@ find_office_session() {
     [ -S "$sock" ] || continue
     MANGO_INSTANCE_SIGNATURE="$sock" mmsg get version >/dev/null 2>&1 || continue
     for pid in $(pgrep -u "$(id -u)"); do
-      env="$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null)" || continue
+      env="$(tr '\0' '\n' 2>/dev/null <"/proc/$pid/environ")" || continue
       grep -qxF "MANGO_INSTANCE_SIGNATURE=$sock" <<<"$env" || continue
       d="$(sed -n 's/^WAYLAND_DISPLAY=//p' <<<"$env")"
       if [ -n "$d" ]; then
@@ -214,6 +215,16 @@ find_office_session() {
   return 1
 }
 
+# The real screens in use, as "name x y" per line: those that are on, and
+# those the idle timer (Noctalia) put to sleep. wlr-randr shows a sleeping
+# screen as off too, but Mango keeps its windows and its place, so it has a
+# size here. A screen turned off with disable_monitor (lid closed, or by
+# hand) has size 0 and stays off.
+screens_in_use() {
+  att mmsg get all-monitors |
+    jq -r --arg v "$VOUT" '.monitors[] | select(.name != $v and .width > 0) | "\(.name) \(.x) \(.y)"'
+}
+
 # The real screens that are on now (everything but the virtual one).
 real_screens_on() {
   att wlr-randr --json | jq -r --arg v "$VOUT" '.[] | select(.enabled and .name != $v) | .name'
@@ -221,6 +232,69 @@ real_screens_on() {
 
 viewer_count() {
   wayvncctl -S "$VNC_SOCK" -j client-list 2>/dev/null | jq 'length' 2>/dev/null || echo 0
+}
+
+# Is a Noctalia running in the office session? Checked by process, not by
+# its socket: a busy Noctalia may not answer for a few seconds.
+office_noctalia_running() {
+  local pid
+  # The Nix wrapper runs .noctalia-wrapped; the kernel keeps 15 characters.
+  for pid in $(pgrep -u "$(id -u)" '^(noctalia|\.noctalia-wrapp)$'); do
+    tr '\0' '\n' 2>/dev/null <"/proc/$pid/environ" | grep -qxF "WAYLAND_DISPLAY=$ATT_WAYLAND" && return 0
+  done
+  return 1
+}
+
+# Starts Noctalia in the office session again if it's gone. Without it, a
+# locked session shows only gray and can't be unlocked, not even at the desk
+# (Mango stays locked when the lock screen dies). Returns once it answers.
+ensure_office_noctalia() {
+  if ! office_noctalia_running; then
+    echo "Noctalia is gone from the office session; starting it again."
+    systemctl --user reset-failed "$NOCTALIA_UNIT" 2>/dev/null || true
+    # bash -l: the normal login environment. DISPLAY comes from the systemd
+    # user environment and may belong to the separate desktop.
+    systemd-run --user --quiet --unit="$NOCTALIA_UNIT" \
+      --description="Noctalia for the office session (restarted by remote-desktop)" \
+      --setenv=WAYLAND_DISPLAY="$ATT_WAYLAND" --setenv=MANGO_INSTANCE_SIGNATURE="$ATT_MANGO" \
+      --setenv=XDG_CURRENT_DESKTOP=mango:wlroots --setenv=XDG_SESSION_DESKTOP=mango \
+      --setenv=XDG_SESSION_TYPE=wayland \
+      bash -lc 'unset DISPLAY; exec noctalia' || return 1
+  fi
+  for _ in $(seq 1 20); do
+    att noctalia msg config-get shell >/dev/null 2>&1 && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+# Tells the office Noctalia the screens are on (dpms-on): it wakes every
+# screen it knows and forgets an earlier "off". After an idle screen-off,
+# Noctalia puts all screens to sleep again whenever a screen appears
+# (onOutputAdded in its compositor_platform.cpp): the new virtual screen, or
+# a real one that detach turns back on. And Mango turns a sleeping screen
+# fully off at the next screen change (a VNC viewer's resize, wlr-randr).
+# That dropped the viewer and left the office screens dark. While attached,
+# _idle-screens never says "off", so Noctalia's state stays "on".
+wake_office_screens() {
+  att noctalia msg dpms-on >/dev/null 2>&1 || return 1
+  sleep 1
+}
+
+# Noctalia's idle step "screen-off" (noctalia/config.toml) runs this, with
+# off after the timeout and on at the next input. Noctalia's own screen_off
+# would turn every screen on at the next input: while attached, the first
+# VNC input turned the office screens on, the watcher turned them off, and
+# back and forth until Noctalia stalled and Mango dropped it, lock screen
+# and all. While attached this does nothing: the real screens stay off and
+# the virtual one stays on.
+idle_screens() {
+  case "${1:-}" in
+    off | on) ;;
+    *) die "usage: remote-desktop _idle-screens off|on" ;;
+  esac
+  is_attached && return 0
+  noctalia msg "dpms-$1"
 }
 
 set_attached_size() {
@@ -238,7 +312,7 @@ undo_and_die() {
 }
 
 attach() {
-  local size="${1:-1920x1080}" scale="${2:-1}" outputs o
+  local size="${1:-1920x1080}" scale="${2:-1}" screens outputs o
   valid_size "$size"
   valid_scale "$scale"
   [ -r "$MANGO_SETTINGS" ] || die "no Mango settings at $MANGO_SETTINGS."
@@ -262,14 +336,20 @@ attach() {
   exec 9>"$LOCK"
   flock -w 30 9 || die "another attach or detach is still running."
 
-  outputs="$(real_screens_on)" || die "couldn't read the screens of the office session."
-  [ -n "$outputs" ] || die "the office session has no screen turned on."
+  # The screens show the lock screen for a moment, then go off below.
+  ensure_office_noctalia || die "Noctalia doesn't answer in the office session."
+  echo "Waking the office screens..."
+  wake_office_screens || die "couldn't wake the office screens through Noctalia."
+
+  # Sleeping screens count too: disable_monitor below really turns them off
+  # (their windows move to the virtual screen), and detach turns them on.
+  screens="$(screens_in_use)" || die "couldn't read the screens of the office session."
+  [ -n "$screens" ] || die "the office session has no screen in use."
+  outputs="$(cut -d' ' -f1 <<<"$screens")"
   printf 'ATT_MANGO=%q\nATT_WAYLAND=%q\n' "$ATT_MANGO" "$ATT_WAYLAND" >"$STATE"
   # With their positions: Mango places a screen that comes back wherever
   # there's room, so detach puts each one back where it was.
-  att wlr-randr --json |
-    jq -r --arg v "$VOUT" '.[] | select(.enabled and .name != $v) | "\(.name) \(.position.x) \(.position.y)"' \
-      >"$OUTPUTS_FILE" || die "couldn't read the positions of the screens."
+  printf '%s\n' "$screens" >"$OUTPUTS_FILE"
 
   echo "Adding a $size virtual screen to the office session..."
   att mmsg dispatch "create_virtual_output,$VOUT" >/dev/null || undo_and_die "couldn't create the virtual screen."
@@ -296,7 +376,7 @@ attach() {
   systemd-run --user --quiet --unit="$ATTACH_UNIT" \
     --description="Remote desktop (attached to the office session)" \
     --setenv=PATH --setenv=HOME --setenv=XDG_RUNTIME_DIR \
-    bash "$0" _watch || undo_and_die "couldn't start $ATTACH_UNIT."
+    bash "$(readlink -f "$0")" _watch || undo_and_die "couldn't start $ATTACH_UNIT."
 
   for _ in $(seq 1 15); do
     if listening; then
@@ -324,6 +404,7 @@ detach_locked() {
   . "$STATE"
 
   echo "Locking the session..."
+  ensure_office_noctalia || echo "warning: Noctalia doesn't answer in the office session." >&2
   att noctalia msg session lock >/dev/null 2>&1 || echo "warning: couldn't lock the session." >&2
   sleep 1
 
@@ -334,9 +415,12 @@ detach_locked() {
   fi
 
   echo "Turning the real screens back on..."
-  local x y positions=()
+  local x y saved=() positions=()
+  # Noctalia first, or it puts each screen that comes back to sleep again.
+  wake_office_screens || echo "warning: couldn't tell Noctalia the screens are on." >&2
   while read -r o x y; do
     [ -n "$o" ] || continue
+    saved+=("$o")
     att mmsg dispatch "enable_monitor,$o" >/dev/null 2>&1 || echo "warning: couldn't turn on $o." >&2
     [ -n "$y" ] && positions+=(--output "$o" --pos "$x,$y")
   done <"$OUTPUTS_FILE"
@@ -356,6 +440,22 @@ detach_locked() {
     att "$LID_SCRIPT" >/dev/null 2>&1 || true
   fi
   systemctl stop --no-block "$BLOCK_UNIT" 2>/dev/null || true
+
+  # Check: at least one screen must be on, or nobody at the desk sees the
+  # lock screen. Try once more if not.
+  sleep 1
+  if [ -z "$(real_screens_on 2>/dev/null)" ]; then
+    echo "warning: no screen came on; trying again." >&2
+    wake_office_screens || true
+    for o in "${saved[@]}"; do
+      att mmsg dispatch "enable_monitor,$o" >/dev/null 2>&1 || true
+    done
+    sleep 1
+    if [ -z "$(real_screens_on 2>/dev/null)" ]; then
+      echo "warning: the notebook's screens are still off. Wake them with: WAYLAND_DISPLAY=$ATT_WAYLAND noctalia msg dpms-on" >&2
+      return 0
+    fi
+  fi
   echo "Detached. The session is locked and the notebook's screens are on again."
 }
 
@@ -424,6 +524,26 @@ watch_attached() {
     att mmsg get version >/dev/null 2>&1 || auto_detach "the Mango session is gone"
     systemctl is-active --quiet "$BLOCK_UNIT" || auto_detach "the input block ended"
 
+    # Without Noctalia the session is stuck on gray. Start it again and lock:
+    # the lock screen comes back on the virtual screen, so you can go on.
+    if ! office_noctalia_running; then
+      if ensure_office_noctalia; then
+        att noctalia msg session lock >/dev/null 2>&1 || echo "warning: couldn't lock the session."
+      else
+        auto_detach "Noctalia ended and didn't come back"
+      fi
+    fi
+
+    # The virtual screen must stay on; wayvnc shows nothing without it.
+    case "$(att wlr-randr --json 2>/dev/null | jq -r --arg v "$VOUT" \
+      'map(select(.name == $v)) | if length == 0 then "gone" elif .[0].enabled then "on" else "off" end')" in
+      gone) auto_detach "the virtual screen is gone" ;;
+      off)
+        echo "The virtual screen went off; turning it on again."
+        att mmsg dispatch "enable_monitor,$VOUT" >/dev/null
+        ;;
+    esac
+
     for o in $(real_screens_on 2>/dev/null); do
       echo "Turning off $o, which came on."
       att mmsg dispatch "disable_monitor,$o" >/dev/null
@@ -488,6 +608,7 @@ case "${1:-}" in
   status) status ;;
   _watch) watch_attached ;;
   _hook) hook ;;
+  _idle-screens) idle_screens "${2:-}" ;;
   -h | --help | help) usage 0 ;;
   *) usage 1 ;;
 esac

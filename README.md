@@ -372,7 +372,8 @@ home PC --(work VPN)--> notebook:22 (SSH) --tunnel--> wayvnc on 127.0.0.1:5900
 ### Taking over the office session, like RDP (recommended for working from home)
 
 `remote-desktop attach` works in your real office session, with all the windows that are open
-there. Leave the session logged in and locked when you go home. Over SSH:
+there. Leave the session logged in and locked when you go home; it's fine if the screens turn off
+after a while. Over SSH:
 
 ```powershell
 ssh -L 5901:localhost:5901 <user>@<notebook>
@@ -387,7 +388,14 @@ remote-desktop detach                 # give the session back (locks it)
 Connect the VNC viewer to `localhost:5901`; unlock the session there if it's locked. While
 attached, the notebook's screens are off (windows from both move to one virtual screen) and its
 keyboard, mouse, touchpad and touchscreen are blocked, so nobody at the desk sees or changes
-anything. A monitor that gets plugged in is turned off again.
+anything. A monitor that gets plugged in is turned off again. Noctalia's idle screen-off leaves the
+office screens alone while attached (`remote-desktop _idle-screens`, set in `noctalia/config.toml`).
+If Noctalia dies in the office session, it's started again and locks the session, so the lock
+screen never goes missing (a locked Mango without it shows only gray). `attach` and `detach` first
+tell Noctalia the screens are on (`noctalia msg dpms-on`; the desk sees the lock screen for a
+moment): after an idle screen-off it would otherwise put every new screen to sleep, the virtual one
+included. If the office screens ever stay dark, the same command wakes them:
+`WAYLAND_DISPLAY=wayland-0 noctalia msg dpms-on`.
 
 It ends by itself, always with the session locked and the screens back on in their old places:
 

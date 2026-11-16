@@ -8,3 +8,14 @@
 [shell]
 # Swiss date in the bar clock: 09.11.2026 (the time stays the default 24-hour).
 date_format = "%d.%m.%Y"
+
+# Screens off after 11 minutes idle, on again at the next input, but through
+# remote-desktop: while `remote-desktop attach` runs it leaves the office
+# screens off (Noctalia's own screen_off would turn them all on at the first
+# VNC input, which ended with the lock screen gone). Otherwise it's the same
+# as screen_off. The same is set in settings.toml, which overrides this file.
+[idle.behavior.screen-off]
+action = "command"
+command = "remote-desktop _idle-screens off"
+resume_command = "remote-desktop _idle-screens on"
+timeout = 660.0

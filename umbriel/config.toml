@@ -28,9 +28,11 @@ show_cheatsheet = true
 # unused ones disappear. For a fixed set of 9 like dwm's tags, uncomment this:
 # [output.Virtual-1]
 # workspaces = 9
-#
-# [output.eDP-1]          # notebook panel
-# scale = 1.25
+
+# Notebook panel (2880x1800): tiny at scale 1. Same value as in
+# mango/settings.conf; try 1.75 or 2 for bigger text.
+[output.eDP-1]
+scale = 1.5
 
 # ==============================================================================
 # Lid: with an external monitor connected, closing the lid turns the notebook

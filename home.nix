@@ -48,6 +48,12 @@ in
     (pkgs.writeShellScriptBin "ttg" ''
       exec ${pkgs.bash}/bin/bash ${./scripts/timetogo.sh} "$@"
     '')
+    # `noctalia-restart` (Super+Ctrl+Shift+R): restart this session's
+    # Noctalia when the bar draws wrong, instead of logging out.
+    (pkgs.writeShellScriptBin "noctalia-restart" ''
+      export PATH=${lib.makeBinPath [ pkgs.procps ]}:/etc/profiles/per-user/${username}/bin:/run/current-system/sw/bin:$PATH
+      exec ${pkgs.bash}/bin/bash ${./scripts/noctalia-restart.sh} "$@"
+    '')
   ];
 
   # Daily wallpaper: Bing's "image of the day" (the same kind of nature photos

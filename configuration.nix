@@ -15,7 +15,7 @@ let
   # private/work.nix.
   rebuild = pkgs.writeShellScriptBin "rebuild" ''
     exec sudo nixos-rebuild switch --impure --flake ${repo} "$@"
-  '';
+  '' // { myCommand = "apply the changes in this repo (sudo nixos-rebuild switch)"; };
   update = pkgs.writeShellApplication {
     name = "update";
     runtimeInputs = [ pkgs.util-linux ];
@@ -36,7 +36,7 @@ let
 
       exec ${rebuild}/bin/rebuild "$@"
     '';
-  };
+  } // { myCommand = "update all flake inputs (newer packages), then rebuild"; };
 
   # `runonce <package> [args...]` runs a program from nixpkgs without
   # installing it, e.g. `runonce cowsay hello` or `runonce ripgrep foo`
@@ -50,7 +50,26 @@ let
     pkg=$1
     shift
     NIXPKGS_ALLOW_UNFREE=1 exec nix run --impure "nixpkgs#$pkg" -- "$@"
-  '';
+  '' // { myCommand = "runonce PACKAGE [ARGS]: run a nixpkgs program without installing it"; };
+
+  # `mycommands`: lists the commands this repo defines, with a short
+  # description. A command shows up here when its package is tagged, like
+  #   (pkgs.writeShellScriptBin "name" ...) // { myCommand = "what it does"; }
+  # Works for packages in environment.systemPackages and Home Manager's
+  # home.packages, in any file.
+  mycommands =
+    let
+      all =
+        config.environment.systemPackages ++ config.home-manager.users.${username}.home.packages;
+      mine = lib.sortOn (p: p.name) (lib.filter (p: p ? myCommand) all);
+      width = lib.foldl' lib.max 0 (map (p: lib.stringLength p.name) mine);
+      pad = s: s + lib.strings.replicate (width - lib.stringLength s) " ";
+      list = pkgs.writeText "mycommands.txt" (
+        lib.concatMapStrings (p: "  ${pad p.name}  ${p.myCommand}\n") mine
+      );
+    in
+    pkgs.writeShellScriptBin "mycommands" "exec cat ${list}"
+    // { myCommand = "list these commands"; };
 
   # wayvnc always captures with ext-image-copy-capture when the compositor
   # offers it. Mango 0.18 answers that with a 0x0 image and wayvnc crashes,
@@ -288,6 +307,7 @@ in
     rebuild # sudo nixos-rebuild switch for this repo
     update # nix flake update, then rebuild
     runonce # run a nixpkgs program once without installing it
+    mycommands # list the commands this repo defines
     # Apps
     # Both browsers: middle-click on a page for Windows-style autoscroll
     # (move the mouse to scroll, click again to stop).
@@ -339,6 +359,8 @@ in
     keepassxc
     cheese
     feh
+    pinta
+    mousepad
 
     # Work
     teams-for-linux

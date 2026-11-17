@@ -13,7 +13,7 @@ let
       ]
     }:$PATH
     exec ${pkgs.bash}/bin/bash ${../../scripts/publish-ip.sh} "$@"
-  '';
+  '' // { myCommand = "write the current IP to polybox (also runs every 30 minutes)"; };
 in
 {
   # ------------------------------------------------------------ Text console

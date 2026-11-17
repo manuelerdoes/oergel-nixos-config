@@ -48,14 +48,16 @@ let
   # changes on the right, to accept or keep one by one (scripts/proofread.py).
   # "Replace selection" pastes the result with ydotool, not wtype: GTK3 apps
   # such as Evolution ignore wtype's Ctrl+V because of its private keymap.
-  proofread = gtkApp "proofread" ./scripts/proofread.py (
-    with pkgs;
-    [
-      wl-clipboard
-      libnotify
-      ydotool
-    ]
-  );
+  proofread =
+    gtkApp "proofread" ./scripts/proofread.py (
+      with pkgs;
+      [
+        wl-clipboard
+        libnotify
+        ydotool
+      ]
+    )
+    // { myCommand = "proofread the selected text with local AI, in a window (Super+C)"; };
 
   # Super+Ctrl+C: the same without a window. Corrects the selected text and
   # pastes it over the selection right away (scripts/proofread-quick.sh).
@@ -69,19 +71,21 @@ let
       libnotify
     ];
     text = builtins.readFile ./scripts/proofread-quick.sh;
-  };
+  } // { myCommand = "proofread the selected text and replace it right away (Super+Ctrl+C)"; };
 
   # Select text, press Super+Alt+C: a window lists what LanguageTool finds,
   # lets you accept a suggestion or keep the text for each problem, and
   # copies the result (scripts/languagetool-check.py).
-  languagetool-check = gtkApp "languagetool-check" ./scripts/languagetool-check.py (
-    with pkgs;
-    [
-      wl-clipboard
-      libnotify
-      ydotool
-    ]
-  );
+  languagetool-check =
+    gtkApp "languagetool-check" ./scripts/languagetool-check.py (
+      with pkgs;
+      [
+        wl-clipboard
+        libnotify
+        ydotool
+      ]
+    )
+    // { myCommand = "check the selected text with LanguageTool, in a window (Super+Alt+C)"; };
 
   # LanguageTool's cloud services. The browser add-ons send usage statistics
   # there, and text for features like synonyms, rephrasing and translation.

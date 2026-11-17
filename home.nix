@@ -36,24 +36,24 @@ in
     # `import-bookmarks FILE.html`: add exported bookmarks to Chromium and Zen.
     (pkgs.writeShellScriptBin "import-bookmarks" ''
       exec ${pkgs.python3}/bin/python3 ${./scripts/import-bookmarks.py} "$@"
-    '')
+    '' // { myCommand = "import-bookmarks FILE.html: add exported bookmarks to Chromium and Zen"; })
     # `remote-desktop attach|detach|start|stop|resize|status`: work on the
     # notebook over VNC, from SSH. The input block it uses is in configuration.nix.
     (pkgs.writeShellScriptBin "remote-desktop" ''
       export PATH=${lib.makeBinPath [ pkgs.wlr-randr pkgs.jq pkgs.util-linux pkgs.procps ]}:/etc/profiles/per-user/${username}/bin:/run/current-system/sw/bin:$PATH
       exec ${pkgs.bash}/bin/bash ${./scripts/remote-desktop.sh} "$@"
-    '')
+    '' // { myCommand = "remote-desktop attach|detach|start|stop|resize|status: the notebook over VNC"; })
     # `timetogo START [LUNCH_MINUTES]`: when an 8.2-hour workday started at
     # START ends (lunch break defaults to 30 minutes).
     (pkgs.writeShellScriptBin "ttg" ''
       exec ${pkgs.bash}/bin/bash ${./scripts/timetogo.sh} "$@"
-    '')
+    '' // { myCommand = "ttg START [LUNCH_MINUTES]: when an 8.2-hour workday ends"; })
     # `noctalia-restart` (Super+Ctrl+Shift+R): restart this session's
     # Noctalia when the bar draws wrong, instead of logging out.
     (pkgs.writeShellScriptBin "noctalia-restart" ''
       export PATH=${lib.makeBinPath [ pkgs.procps ]}:/etc/profiles/per-user/${username}/bin:/run/current-system/sw/bin:$PATH
       exec ${pkgs.bash}/bin/bash ${./scripts/noctalia-restart.sh} "$@"
-    '')
+    '' // { myCommand = "restart Noctalia when the bar draws wrong (Super+Ctrl+Shift+R)"; })
   ];
 
   # Daily wallpaper: Bing's "image of the day" (the same kind of nature photos
@@ -88,7 +88,7 @@ in
     settings.confirm_os_window_close = 0;
   };
 
-  # `rebuild` and `update` are commands defined in configuration.nix.
+  # `rebuild`, `update`, `runonce` and `mycommands` are defined in configuration.nix.
   programs.bash.enable = true;
   home.pointerCursor = {
     enable = true;

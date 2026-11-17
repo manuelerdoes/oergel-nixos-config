@@ -361,6 +361,8 @@ in
     feh
     pinta
     mousepad
+    kdePackages.okular
+    nss.tools
 
     # Work
     teams-for-linux

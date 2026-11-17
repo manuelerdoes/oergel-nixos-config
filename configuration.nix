@@ -38,6 +38,20 @@ let
     '';
   };
 
+  # `runonce <package> [args...]` runs a program from nixpkgs without
+  # installing it, e.g. `runonce cowsay hello` or `runonce ripgrep foo`
+  # (nix runs the package's main program, here rg). Uses the same nixpkgs
+  # as the system, so it rarely downloads much. Unfree packages are allowed.
+  runonce = pkgs.writeShellScriptBin "runonce" ''
+    if [ $# -eq 0 ]; then
+      echo "usage: runonce <package> [args...]" >&2
+      exit 1
+    fi
+    pkg=$1
+    shift
+    NIXPKGS_ALLOW_UNFREE=1 exec nix run --impure "nixpkgs#$pkg" -- "$@"
+  '';
+
   # wayvnc always captures with ext-image-copy-capture when the compositor
   # offers it. Mango 0.18 answers that with a 0x0 image and wayvnc crashes,
   # so this variant uses the older wlr-screencopy protocol instead. The patch
@@ -273,6 +287,7 @@ in
   environment.systemPackages = with pkgs; [
     rebuild # sudo nixos-rebuild switch for this repo
     update # nix flake update, then rebuild
+    runonce # run a nixpkgs program once without installing it
     # Apps
     # Both browsers: middle-click on a page for Windows-style autoscroll
     # (move the mouse to scroll, click again to stop).

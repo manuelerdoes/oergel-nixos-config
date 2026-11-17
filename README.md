@@ -283,6 +283,26 @@ without joining the machine to the domain.
 3. **Set up the VPN** (for off campus): run `nm-connection-editor`, click **+**, and choose
    *Cisco AnyConnect or openconnect*. As *Gateway*, enter the server you use in Cisco Secure Client
    on Windows. Save.
+4. **Set up the Wi-Fi** "eduroam" and "eth". Both log in with your ETH username and your ETH
+   **network password**. That password is separate from your normal ETH password and is set at
+   [password.ethz.ch](https://password.ethz.ch). Replace `USERNAME` and run:
+   ```sh
+   nmcli connection add type wifi con-name eduroam ssid eduroam \
+     wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2 \
+     802-1x.identity USERNAME@ethz.ch 802-1x.anonymous-identity anonymous@ethz.ch \
+     802-1x.ca-cert /etc/ssl/certs/ethz-root-ca-2020.pem \
+     802-1x.domain-suffix-match radius-service.ethz.ch 802-1x.password-flags 1
+
+   nmcli connection add type wifi con-name "ETH WLAN" ssid eth \
+     wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2 \
+     802-1x.identity USERNAME \
+     802-1x.ca-cert /etc/ssl/certs/ethz-root-ca-2020.pem \
+     802-1x.domain-suffix-match radius-service.ethz.ch 802-1x.password-flags 1
+   ```
+   The profile for the "eth" network is called *ETH WLAN* because the VPN may already be called *eth*.
+   The first time it connects, a dialog asks for the password and keeps it in the keyring.
+   Without the certificate from `work.nix`, the connection fails with `unable to get local issuer
+   certificate` in `journalctl -u wpa_supplicant`.
 
 ### Every day
 

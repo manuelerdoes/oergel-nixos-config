@@ -31,6 +31,14 @@ in
       # implements. The plugin makes it a normal NetworkManager VPN connection.
       networking.networkmanager.plugins = [ pkgs.networkmanager-openconnect ];
 
+      # ------------------------------------------------------------------ WLAN
+      # The Wi-Fi networks "eth" and "eduroam" check the login server against
+      # ETH's own root certificate, which isn't among the public ones NixOS
+      # ships. Without it the connection fails before the password is even
+      # sent. Taken from ETH's eduroam CAT profile (cat.eduroam.org). The Wi-Fi
+      # profiles point at this file: see the README.
+      environment.etc."ssl/certs/ethz-root-ca-2020.pem".source = ./certs/ethz-root-ca-2020.pem;
+
       environment.systemPackages = with pkgs; [
         cifs-utils # mount.cifs, cifs.upcall
         keyutils # request-key, used by the kernel for the ticket lookup

@@ -363,6 +363,7 @@ in
     mousepad
     kdePackages.okular
     nss.tools
+    mpv
 
     # Work
     teams-for-linux

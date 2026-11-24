@@ -13,12 +13,24 @@ let
   # `rebuild` and `update` are real commands (not shell aliases), so they work
   # with and without sudo. --impure lets the build read the git-ignored
   # private/work.nix.
-  rebuild = pkgs.writeShellScriptBin "rebuild" ''
-    exec sudo nixos-rebuild switch --impure --flake ${repo} "$@"
-  '' // { myCommand = "apply the changes in this repo (sudo nixos-rebuild switch)"; };
+  # After switching, `rebuild` lists the packages that changed (nvd compares
+  # the old and the new system).
+  rebuild = pkgs.writeShellApplication {
+    name = "rebuild";
+    runtimeInputs = [ pkgs.nvd ];
+    text = ''
+      old=$(readlink -f /run/current-system)
+      sudo nixos-rebuild switch --impure --flake ${repo} "$@"
+      echo
+      nvd diff "$old" /run/current-system
+    '';
+  } // { myCommand = "apply the changes in this repo (sudo nixos-rebuild switch)"; };
+
+  # `update` builds the new system first, shows what would change, and only
+  # switches when you say yes. Saying no puts flake.lock back as it was.
   update = pkgs.writeShellApplication {
     name = "update";
-    runtimeInputs = [ pkgs.util-linux ];
+    runtimeInputs = [ pkgs.util-linux pkgs.nvd ];
     text = ''
       # Anything root ever created in the repo (e.g. from a `sudo git ...`)
       # makes `nix flake update` fail with "permission denied", so fix it first.
@@ -27,16 +39,54 @@ let
         sudo chown -R ${username}: ${repo}
       fi
 
-      # flake.lock and git belong to ${username}, so never update them as root.
-      if [ "$(id -u)" -eq 0 ]; then
-        runuser -u ${username} -- nix flake update --flake ${repo}
-      else
-        nix flake update --flake ${repo}
+      # flake.lock and git belong to ${username}, so never touch them as root.
+      as_user() {
+        if [ "$(id -u)" -eq 0 ]; then
+          runuser -u ${username} -- "$@"
+        else
+          "$@"
+        fi
+      }
+
+      # The build's ./result link lands in a temp folder (it also keeps the
+      # build from being garbage-collected until the switch).
+      tmp=$(mktemp -d)
+      trap 'rm -rf "$tmp"' EXIT
+      cp ${repo}/flake.lock "$tmp/flake.lock.old"
+
+      as_user nix flake update --flake ${repo}
+
+      echo "Building the new system ..."
+      (cd "$tmp" && nixos-rebuild build --impure --flake ${repo} "$@")
+      new=$(readlink -f "$tmp/result")
+      old=$(readlink -f /run/current-system)
+
+      if [ "$new" = "$old" ]; then
+        echo "Nothing changed, the system is already up to date."
+        exit 0
       fi
 
-      exec ${rebuild}/bin/rebuild "$@"
+      echo
+      nvd diff "$old" "$new"
+      echo
+
+      # Ask only in a terminal; in scripts, just go ahead.
+      if [ -t 0 ]; then
+        read -r -p "Switch to the new system? [Y/n] " answer
+        case "$answer" in
+          "" | [yY]*) ;;
+          *)
+            # Writing into the existing file keeps its owner, even as root.
+            cat "$tmp/flake.lock.old" > ${repo}/flake.lock
+            echo "Not switched. flake.lock is back as it was."
+            exit 1
+            ;;
+        esac
+      fi
+
+      sudo nixos-rebuild switch --impure --flake ${repo} "$@"
     '';
-  } // { myCommand = "update all flake inputs (newer packages), then rebuild"; };
+  } // { myCommand = "update all flake inputs, show what changes, then switch"; };
 
   # `runonce <package> [args...]` runs a program from nixpkgs without
   # installing it, e.g. `runonce cowsay hello` or `runonce ripgrep foo`

@@ -192,7 +192,11 @@ update
 ```
 
 It runs `nix flake update`, which writes the newest versions of nixpkgs, Home Manager and Zen to
-`flake.lock`, and then `rebuild`. It works with or without `sudo`. If root ever left files in the repo
+`flake.lock`, and builds the new system. Then it lists every package that would change (old → new
+version, added, removed) and asks before switching. Answering no puts `flake.lock` back as it was.
+`rebuild` also lists the changed packages after it switches. To see what an earlier update changed:
+`nix store diff-closures $(ls -d /nix/var/nix/profiles/system-*-link | sort -V | tail -2)`.
+It works with or without `sudo`. If root ever left files in the repo
 (e.g. after a `sudo git ...`), it gives them back to you first, since those make `nix flake update` fail
 with "permission denied". Afterwards:
 
